@@ -1,0 +1,69 @@
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "matrices.h"
+#include "read_file.h"
+
+static const int LABEL_FILE_TYPE = 2049;
+static const int IMAGE_FILE_TYPE = 2051;
+
+int swap_int(int val) {
+    uint32_t u = (uint32_t)val;
+    u = (u >> 24) |
+        ((u >> 8) & 0x0000FF00) |
+        ((u << 8) & 0x00FF0000) |
+        (u << 24);
+    return (int)u;
+}
+
+Matrix** read_label_file(char* file_name) {
+    FILE *fptr = fopen(file_name, "rb");
+    int metadata[2];
+    fread(&metadata, sizeof(int), 2, fptr);
+    int file_type = swap_int(metadata[0]);
+    if (file_type != LABEL_FILE_TYPE) {
+        fprintf(stderr, "Did not receive correct label file type\n");
+        exit(EXIT_FAILURE);
+    }
+    int arr_size = swap_int(metadata[1]);
+    
+    uint8_t *all_labels = malloc(sizeof(uint8_t) * arr_size);
+    fread(all_labels, sizeof(uint8_t), arr_size, fptr);
+
+    Matrix** label_matrices = malloc(sizeof(Matrix*) * arr_size);
+    for (int i = 0; i < arr_size; i++) {
+        label_matrices[i] = create_matrix(10, 1);
+        int index = all_labels[i];
+        set_matrix_value(label_matrices[i], index, 0, 1);
+    }
+    free(all_labels);
+    return label_matrices;
+}
+
+Matrix** read_images(char* file_name) {
+    FILE *fptr = fopen(file_name, "rb");
+    int metadata[4];
+    fread(&metadata, sizeof(int), 4, fptr);
+    
+    int file_type = swap_int(metadata[0]);
+    int num_images = swap_int(metadata[1]);
+    int num_rows = swap_int(metadata[2]);
+    int num_cols = swap_int(metadata[3]);
+
+    if (file_type != IMAGE_FILE_TYPE) {
+        fprintf(stderr, "Did not receive correct image file type\n");
+    }
+
+    Matrix **images = malloc(sizeof(Matrix*) * num_images);
+    for (int i = 0; i < num_images; i++) {
+        uint8_t values[num_rows * num_cols];
+        fread(&values, sizeof(uint8_t), num_rows * num_cols, fptr);
+        double converted_values[num_rows * num_cols];
+        for (int j = 0; j < num_rows * num_cols; j++) {
+            converted_values[j] = (double)values[j];
+        }
+        Matrix* m = create_matrix_with_values(num_rows * num_cols, 1, converted_values);
+        images[i] = m;
+    }
+    return images;
+}
