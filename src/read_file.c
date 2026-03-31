@@ -60,7 +60,7 @@ Matrix** read_images(char* file_name) {
         fread(&values, sizeof(uint8_t), num_rows * num_cols, fptr);
         double converted_values[num_rows * num_cols];
         for (int j = 0; j < num_rows * num_cols; j++) {
-            converted_values[j] = (double)values[j];
+            converted_values[j] = (double)values[j] / 255;
         }
         Matrix* m = create_matrix_with_values(num_rows * num_cols, 1, converted_values);
         images[i] = m;

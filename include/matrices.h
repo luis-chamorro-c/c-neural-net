@@ -14,7 +14,7 @@ void free_matrices(Matrix** matrices, int num_matrices);
 
 int set_matrix_value(Matrix* matrix, int row, int column, double value);
 
-int get_matrix_value(Matrix* matrix, int row, int column);
+double get_matrix_value(Matrix* matrix, int row, int column);
 
 int set_matrix_values(Matrix* matrix, int row, double* values, int length);
 
@@ -33,5 +33,7 @@ Matrix* element_wise_operation(Matrix* matrix, double (*func)(double));
 Matrix* scalar_multiply_matrix(Matrix* matrix, double scalar);
 
 Matrix* multiply_matrices(Matrix* m1, Matrix* m2);
+
+double get_cost(Matrix* m1, Matrix* m2);
 
 #endif

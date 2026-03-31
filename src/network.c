@@ -6,13 +6,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
+
+const static int SAMPLE_SIZE = 10;
 
 double rand_normal() {
-    // Generate two uniform random numbers (0,1]
     double u1 = (rand() + 1.0) / (RAND_MAX + 1.0);
     double u2 = (rand() + 1.0) / (RAND_MAX + 1.0);
 
-    // Box-Muller transform
     return sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2);
 }
 
@@ -43,7 +44,7 @@ Network *initialize_network(int* layers, int num_layers) {
         int l_count = layers[i+1];
         Matrix *curr_bias = create_matrix(l_count, 1);
         for (int i = 0; i < l_count; i++) {
-            set_matrix_value(curr_bias, i, 0, rand_normal());
+            set_matrix_value(curr_bias, i, 0, 0);
         }
         biases[i] = curr_bias;
     }
@@ -73,7 +74,25 @@ double sigmoid_prime(double input) {
 }
 
 Matrix* cost_derivative(Matrix* activations, Matrix* y) {
-    return subtract_matrices(activations, y);
+    Matrix* diff = subtract_matrices(activations, y);
+    return diff;
+}
+
+void feed_forward_for_backprop(Network* network, Matrix* input, Matrix** activations, Matrix** pre_activations) {
+    Matrix* current = input;
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        Matrix* weights = network->weights[i];
+        Matrix* biases = network->biases[i];
+        
+        Matrix* product = multiply_matrices(weights, current);
+        Matrix* sum = add_matrices(product, biases);
+        pre_activations[i] = sum;
+        free_matrix(product);
+    
+        Matrix* sigmoid_m = element_wise_operation(sum, sigmoid);
+        activations[i+1] = sigmoid_m;
+        current = sigmoid_m;
+    }
 }
 
 void backpropagation(Network* network, Matrix* input, Matrix* output, Matrix*** output_delta_w, Matrix*** output_delta_b) {
@@ -85,7 +104,7 @@ void backpropagation(Network* network, Matrix* input, Matrix* output, Matrix*** 
     feed_forward_for_backprop(network, input, activations, pre_activations);
 
     // Get error for last layer
-    Matrix* cost_der = cost_derivative(activations[size - 1], output);
+    Matrix* cost_der = cost_derivative(activations[network->num_layers - 1], output);
     Matrix* sigmoid_der = element_wise_operation(pre_activations[size - 1], sigmoid_prime);
     Matrix* error = hadamard_product(cost_der, sigmoid_der);
     free_matrix(cost_der);
@@ -107,38 +126,74 @@ void backpropagation(Network* network, Matrix* input, Matrix* output, Matrix*** 
         Matrix* weight_t = transpose_matrix(network->weights[i + 1]);
         Matrix* weight_x_error = multiply_matrices(weight_t, error);
         error = hadamard_product(weight_x_error, sig_dev_pre_activation);
+        
         free_matrix(sig_dev_pre_activation);
         free_matrix(weight_t);
         free_matrix(weight_x_error);
 
         delta_b[i] = error;
-        Matrix* activ_t = transpose_matrix(activations[i - 1]);
+        Matrix* activ_t = transpose_matrix(activations[i]);
         delta_w[i] = multiply_matrices(error, activ_t);
         free_matrix(activ_t);
     }
 
     // Clean up
     free_matrices(pre_activations, size);
-    free_matrices(activations, network->num_layers);
+    for (int i = 1; i < network->num_layers; i++) {
+        // cant free first one cause that's the input we passed in
+        free_matrix(activations[i]);
+    }
+    free(activations);
 
     // Return
     (*output_delta_b) = delta_b;
     (*output_delta_w) = delta_w;
 }
 
-void feed_forward_for_backprop(Network* network, Matrix* input, Matrix** activations, Matrix** pre_activations) {
-    Matrix* current = input;
+void update_with_samples(Network *network, Matrix **input, Matrix **output, double learning_rate, int start_index) {
+    Matrix **delta_w_sums = malloc(sizeof(Matrix*) * (network->num_layers - 1));
+    Matrix **delta_b_sums = malloc(sizeof(Matrix*) * (network->num_layers - 1));
     for (int i = 0; i < network->num_layers - 1; i++) {
-        Matrix* weights = network->weights[i];
-        Matrix* biases = network->biases[i];
-        
-        Matrix* product = multiply_matrices(weights, current);
-        Matrix* sum = add_matrices(product, biases);
-        pre_activations[i] = sum;
-        free_matrix(product);
-    
-        Matrix* sigmoid_m = element_wise_operation(sum, sigmoid);
-        activations[i] = sigmoid_m;
-        current = sigmoid_m;
+        delta_w_sums[i] = create_matrix(network->layers[i+1], network->layers[i]);
     }
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        delta_b_sums[i] = create_matrix(network->layers[i+1], 1);
+    }
+
+    for (int i = 0; i < SAMPLE_SIZE; i++) {
+        Matrix** delta_w;
+        Matrix** delta_b;
+        backpropagation(network, input[start_index + i], output[start_index + i], &delta_w, &delta_b);
+        
+        for (int i = 0; i < network->num_layers - 1; i++) {
+            Matrix* curr_w_sum = delta_w_sums[i];
+            delta_w_sums[i] = add_matrices(curr_w_sum, delta_w[i]);
+
+            free_matrix(curr_w_sum);
+            Matrix* curr_b_sum = delta_b_sums[i];
+            delta_b_sums[i] = add_matrices(curr_b_sum, delta_b[i]);
+            free_matrix(curr_b_sum);
+        }
+
+        free_matrices(delta_w, network->num_layers-1);
+        free_matrices(delta_b, network->num_layers-1);
+    }
+
+    double to_mult = (learning_rate/SAMPLE_SIZE);
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        Matrix* w_multiplied = scalar_multiply_matrix(delta_w_sums[i], to_mult);
+        Matrix* prev_weights = network->weights[i];
+        network->weights[i] = subtract_matrices(prev_weights, w_multiplied);
+        free_matrix(prev_weights);
+        free_matrix(w_multiplied);
+
+        Matrix* b_multiplied = scalar_multiply_matrix(delta_b_sums[i], to_mult);
+        Matrix* prev_biases = network->biases[i];
+        network->biases[i] = subtract_matrices(prev_biases, b_multiplied);
+        free_matrix(prev_biases);
+        free_matrix(b_multiplied);
+    }
+
+    free_matrices(delta_w_sums, network->num_layers - 1);
+    free_matrices(delta_b_sums, network->num_layers - 1);
 }

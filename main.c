@@ -27,16 +27,18 @@ void read_file(Matrix*** input_img, Matrix*** input_label) {
 int main() {
   srand(0);
 
-  int layers[3] = { (28*28), 32, 10 };
+  int layers[3] = { (28*28), 30, 10 };
   Network *network = initialize_network(layers, 3);
 
   Matrix** input;
   Matrix** output;
   read_file(&input, &output);
   
-  // backpropagation(network, input, )
+  for (int i = 0; i < 10000; i+=10) {
+    update_with_samples(network, input, output, 0.5, i);
+  }
 
-  // free_matrices(input, 60000);
-  // free_matrices(output, 60000);
-  // free_network(network);
+  free_matrices(input, 60000);
+  free_matrices(output, 60000);
+  free_network(network);
 }
