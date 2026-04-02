@@ -16,7 +16,20 @@ int swap_int(int val) {
     return (int)u;
 }
 
-Matrix** read_label_file(char* file_name) {
+uint8_t convert_label_to_number(Matrix* label_matrix) {
+    double max = -1;
+    uint8_t max_num = 0;
+    for (int i = 0; i < 10; i++) {
+        double matrix_value = get_matrix_value(label_matrix, i, 0);
+        if (matrix_value > max) {
+            max = matrix_value;
+            max_num = i;
+        }
+    }
+    return max_num;
+}
+
+uint8_t* read_labels_as_int(char* file_name, int* file_size) {
     FILE *fptr = fopen(file_name, "rb");
     int metadata[2];
     fread(&metadata, sizeof(int), 2, fptr);
@@ -29,9 +42,18 @@ Matrix** read_label_file(char* file_name) {
     
     uint8_t *all_labels = malloc(sizeof(uint8_t) * arr_size);
     fread(all_labels, sizeof(uint8_t), arr_size, fptr);
+    fclose(fptr);
+    
+    (*file_size) = arr_size;
+    return all_labels;
+}
 
-    Matrix** label_matrices = malloc(sizeof(Matrix*) * arr_size);
-    for (int i = 0; i < arr_size; i++) {
+Matrix** read_label_file(char* file_name) {
+    int file_size;
+    uint8_t *all_labels = read_labels_as_int(file_name, &file_size);
+
+    Matrix** label_matrices = malloc(sizeof(Matrix*) * file_size);
+    for (int i = 0; i < file_size; i++) {
         label_matrices[i] = create_matrix(10, 1);
         int index = all_labels[i];
         set_matrix_value(label_matrices[i], index, 0, 1);

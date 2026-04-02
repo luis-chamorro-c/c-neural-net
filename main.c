@@ -5,6 +5,14 @@
 #include "read_file.h"
 #include "network.h"
 
+#define BASE_DIR "./mnist-dataset"
+
+#define TRAINING_LABELS BASE_DIR"/train-labels-idx1-ubyte/train-labels-idx1-ubyte"
+#define TRAINING_IMAGES BASE_DIR"/train-images-idx3-ubyte/train-images-idx3-ubyte"
+
+#define TESTING_LABELS BASE_DIR"/t10k-labels-idx1-ubyte/t10k-labels-idx1-ubyte"
+#define TESTING_IMAGES BASE_DIR"/t10k-images-idx3-ubyte/t10k-images-idx3-ubyte"
+
 void matrix_test() {
   double myVals[12] = { 0.0, 1.0, 2.0, 3.0, 4.0, 5};
   Matrix* m1 = create_matrix_with_values(2, 3, myVals);
@@ -13,32 +21,72 @@ void matrix_test() {
   free_matrix(m1);
 }
 
-void read_file(Matrix*** input_img, Matrix*** input_label) {
-  char* filename = "./mnist-dataset/train-labels-idx1-ubyte/train-labels-idx1-ubyte";
-  Matrix** labels = read_label_file(filename);
-  
-  char* image_filename = "./mnist-dataset/train-images-idx3-ubyte/train-images-idx3-ubyte";
-  Matrix** images = read_images(image_filename);
+void read_training_files(Matrix*** input_img, Matrix*** input_label) {
+  Matrix** labels = read_label_file(TRAINING_LABELS);
+  Matrix** images = read_images(TRAINING_IMAGES);
 
   (*input_img) = images;
   (*input_label) = labels;
 }
 
-int main() {
-  srand(0);
+void read_test_files(Matrix*** input_img, uint8_t **input_label) {
+  int size;
+  uint8_t* labels = read_labels_as_int(TESTING_LABELS, &size);
+  Matrix** images = read_images(TESTING_IMAGES);
 
+  (*input_img) = images;
+  (*input_label) = labels;
+}
+
+Network* train() {
+  printf("Training has begun\n");
   int layers[3] = { (28*28), 30, 10 };
   Network *network = initialize_network(layers, 3);
 
   Matrix** input;
   Matrix** output;
-  read_file(&input, &output);
+  read_training_files(&input, &output);
   
-  for (int i = 0; i < 10000; i+=10) {
+  int training_count = 60000;
+  for (int i = 0; i < training_count; i+=10) {
+    if (i % 10000 == 0) {
+      printf("Trained %d entries\n", i);
+    }
     update_with_samples(network, input, output, 0.5, i);
   }
 
+  printf("Training complete!\n\n");
   free_matrices(input, 60000);
   free_matrices(output, 60000);
+  return network;
+}
+
+void measure_performance(Network* network) {
+  printf("Testing started\n");
+  Matrix** input;
+  uint8_t *output;
+  read_test_files(&input, &output);
+
+  int success = 0;
+  int total_samples = 10000;
+  for (int i = 0; i < total_samples; i++) {
+    Matrix* result = feed_forward(network, input[i]);
+    uint8_t num_result = convert_label_to_number(result);
+    if (num_result == output[i]) {
+      success++;
+    }
+    free_matrix(result);
+  }
+
+  free_matrices(input, 10000);
+  free(output);
+
+  double success_rate = ((double)success / total_samples) * 100;
+  printf("Testing completed! Tested %d samples. Success rate: %.2f%%\n", total_samples, success_rate);
+}
+
+int main() {
+  Network *network = train();
+  measure_performance(network);
   free_network(network);
 }

@@ -210,5 +210,5 @@ double get_cost(Matrix* m1, Matrix* m2) {
             sum += diff * diff;
         }
     }
-    return sum;
+    return sum / 2;
 }

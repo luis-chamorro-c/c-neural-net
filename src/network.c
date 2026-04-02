@@ -10,11 +10,11 @@
 
 const static int SAMPLE_SIZE = 10;
 
-double rand_normal() {
-    double u1 = (rand() + 1.0) / (RAND_MAX + 1.0);
-    double u2 = (rand() + 1.0) / (RAND_MAX + 1.0);
-
-    return sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2);
+double fake_random(int j, int k) {
+    // I debugged this by comparing to the python version, so I needed to initialize with a deterministic but
+    // random looking set of numbers that I could compare 1 to 1. This was a pretty good estimate
+    double val = sin(j * 12.9898 + k * 78.233) * 43758.5453;
+    return (val - floor(val)) - 0.5;
 }
 
 Network *initialize_network(int* layers, int num_layers) {
@@ -32,7 +32,7 @@ Network *initialize_network(int* layers, int num_layers) {
         Matrix* curr_matrix = create_matrix(l2_count, l1_count);
         for (int j = 0; j < l2_count; j++) {
             for (int k = 0; k < l1_count; k++) {
-                set_matrix_value(curr_matrix, j, k, rand_normal());
+                set_matrix_value(curr_matrix, j, k, fake_random(j, k));
             }
         }
         curr_weights[i] = curr_matrix;
@@ -74,8 +74,7 @@ double sigmoid_prime(double input) {
 }
 
 Matrix* cost_derivative(Matrix* activations, Matrix* y) {
-    Matrix* diff = subtract_matrices(activations, y);
-    return diff;
+    return subtract_matrices(activations, y);
 }
 
 void feed_forward_for_backprop(Network* network, Matrix* input, Matrix** activations, Matrix** pre_activations) {
@@ -93,6 +92,27 @@ void feed_forward_for_backprop(Network* network, Matrix* input, Matrix** activat
         activations[i+1] = sigmoid_m;
         current = sigmoid_m;
     }
+}
+
+Matrix* feed_forward(Network* network, Matrix* input) {
+    Matrix* current = input;
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        Matrix* weights = network->weights[i];
+        Matrix* biases = network->biases[i];
+        
+        Matrix* product = multiply_matrices(weights, current);
+        Matrix* sum = add_matrices(product, biases);
+        free_matrix(product);
+    
+        Matrix* sigmoid_m = element_wise_operation(sum, sigmoid);
+        Matrix* prev_current = current;
+        current = sigmoid_m;
+        if (i > 0) {
+            free_matrix(prev_current);
+        }
+        free_matrix(sum);
+    }
+    return current;
 }
 
 void backpropagation(Network* network, Matrix* input, Matrix* output, Matrix*** output_delta_w, Matrix*** output_delta_b) {
