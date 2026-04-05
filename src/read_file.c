@@ -48,7 +48,7 @@ uint8_t* read_labels_as_int(char* file_name, int* file_size) {
     return all_labels;
 }
 
-Matrix** read_label_file(char* file_name) {
+Matrix** read_label_file(char* file_name, int* input_size) {
     int file_size;
     uint8_t *all_labels = read_labels_as_int(file_name, &file_size);
 
@@ -59,6 +59,7 @@ Matrix** read_label_file(char* file_name) {
         set_matrix_value(label_matrices[i], index, 0, 1);
     }
     free(all_labels);
+    (*input_size) = file_size;
     return label_matrices;
 }
 
