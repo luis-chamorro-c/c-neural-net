@@ -1,10 +1,17 @@
 #ifndef MATRICES_H
+#define MATRICES_H
 
 #include <stdint.h>
 
-typedef struct Matrix Matrix;
+typedef struct { 
+    double* values;
+    int columns;
+    int rows;
+} Matrix;
 
 Matrix* create_matrix(int rows, int columns);
+
+Matrix* create_matrices(int rows, int columns, int num_matrices);
 
 Matrix* create_matrix_with_values(int rows, int columns, double* values);
 
@@ -24,7 +31,7 @@ Matrix* transpose_matrix(Matrix* matrix);
 
 Matrix* add_matrices(Matrix* m1, Matrix* m2);
 
-Matrix* subtract_matrices(Matrix* m1, Matrix* m2);
+void subtract_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 
 Matrix* hadamard_product(Matrix* m1, Matrix* m2);
 

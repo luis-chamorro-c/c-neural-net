@@ -3,12 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct Matrix { 
-    double* values;
-    int columns;
-    int rows;
-};
-
 int _get_index(Matrix* matrix, int row, int column) {
     return (row * matrix->columns) + column;
 }
@@ -16,6 +10,23 @@ int _get_index(Matrix* matrix, int row, int column) {
 void _set_matrix_value(Matrix* matrix, int row, int column, double value) {
     int index = _get_index(matrix, row, column);
     matrix->values[index] = value;
+}
+
+Matrix* create_matrices(int rows, int columns, int num_matrices) {
+    int struct_size = sizeof(Matrix) * num_matrices;
+    int arr_size = sizeof(double) * rows * columns * num_matrices;
+    void* memory_block = malloc(struct_size + arr_size);
+
+    Matrix* matrix_list = (Matrix*)memory_block;
+    double* arr_start = (double*)((uint8_t*)memory_block + struct_size);
+
+    for (int i = 0; i < num_matrices; i++) {
+        matrix_list[i].rows = rows * columns;
+        matrix_list[i].columns = 1;
+        matrix_list[i].values = arr_start + (i * rows * columns);
+    }
+
+    return matrix_list;
 }
 
 Matrix* create_matrix(int rows, int columns) {
@@ -116,7 +127,7 @@ Matrix* add_matrices(Matrix* m1, Matrix* m2) {
     return sum;
 }
 
-Matrix* subtract_matrices(Matrix* m1, Matrix* m2) {
+void subtract_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
     if (m1->columns != m2->columns || m1->rows != m2->rows) {
         fprintf(stderr, "Incorrect dimensions for matrix subtraction. Received (%d, %d), (%d, %d)\n",
             m1->rows, m1->columns, m2->rows, m2->columns);
@@ -124,16 +135,10 @@ Matrix* subtract_matrices(Matrix* m1, Matrix* m2) {
     }
     int rows = m1->rows;
     int cols = m1->columns;
-    Matrix* sum = create_matrix(rows, cols);
-    
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            double d1 = get_matrix_value(m1, i, j);
-            double d2 = get_matrix_value(m2, i, j);
-            set_matrix_value(sum, i, j, d1 - d2);
-        }
+
+    for (int i = 0; i < m1->rows * m1->columns; i++) {
+        out->values[i] = m1->values[i] - m2->values[i];
     }
-    return sum;
 }
 
 Matrix* hadamard_product(Matrix* m1, Matrix* m2) {

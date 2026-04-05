@@ -31,6 +31,10 @@ uint8_t convert_label_to_number(Matrix* label_matrix) {
 
 uint8_t* read_labels_as_int(char* file_name, int* file_size) {
     FILE *fptr = fopen(file_name, "rb");
+    if (fptr == NULL) {
+        perror("Error opening label file");
+        exit(EXIT_FAILURE);
+    }
     int metadata[2];
     fread(&metadata, sizeof(int), 2, fptr);
     int file_type = swap_int(metadata[0]);
@@ -48,22 +52,23 @@ uint8_t* read_labels_as_int(char* file_name, int* file_size) {
     return all_labels;
 }
 
-Matrix** read_label_file(char* file_name, int* input_size) {
+Matrix* read_label_file(char* file_name, int* input_size) {
     int file_size;
     uint8_t *all_labels = read_labels_as_int(file_name, &file_size);
 
-    Matrix** label_matrices = malloc(sizeof(Matrix*) * file_size);
+    Matrix* label_matrices = create_matrices(10, 1, file_size);
     for (int i = 0; i < file_size; i++) {
-        label_matrices[i] = create_matrix(10, 1);
+        label_matrices[i].rows = 10;
+        label_matrices[i].columns = 1;
         int index = all_labels[i];
-        set_matrix_value(label_matrices[i], index, 0, 1);
+        label_matrices[i].values[index] = 1;
     }
     free(all_labels);
     (*input_size) = file_size;
     return label_matrices;
 }
 
-Matrix** read_images(char* file_name) {
+Matrix* read_images(char* file_name) {
     FILE *fptr = fopen(file_name, "rb");
     int metadata[4];
     fread(&metadata, sizeof(int), 4, fptr);
@@ -77,16 +82,15 @@ Matrix** read_images(char* file_name) {
         fprintf(stderr, "Did not receive correct image file type\n");
     }
 
-    Matrix **images = malloc(sizeof(Matrix*) * num_images);
+    Matrix *images = create_matrices(num_rows, num_cols, num_images);
     for (int i = 0; i < num_images; i++) {
+        Matrix image = images[i];
         uint8_t values[num_rows * num_cols];
         fread(&values, sizeof(uint8_t), num_rows * num_cols, fptr);
-        double converted_values[num_rows * num_cols];
+        double *matrix_values = image.values;
         for (int j = 0; j < num_rows * num_cols; j++) {
-            converted_values[j] = (double)values[j] / 255;
+            matrix_values[j] = (double)values[j] / 255;
         }
-        Matrix* m = create_matrix_with_values(num_rows * num_cols, 1, converted_values);
-        images[i] = m;
     }
     return images;
 }

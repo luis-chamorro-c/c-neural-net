@@ -25,40 +25,51 @@ Network *initialize_network(int* layers, int num_layers) {
     memcpy(layers_copy, layers, sizeof(int) * num_layers);
     network->layers = layers_copy;
 
-    Matrix **curr_weights = malloc(sizeof(Matrix*) * num_layers);
+    int struct_size = sizeof(Matrix) * (num_layers - 1);
+
+    int num_entries = 0;
+    int layers_sum = 0;
+    for (int i = 0; i < num_layers - 1; i++) {
+        num_entries += layers[i] * layers[i+1];
+        layers_sum += layers[i+1];
+    }
+    
+    Matrix* curr_weights = malloc(struct_size + (sizeof(double) * num_entries));
+    double* values_start = (double*)((uint8_t*)curr_weights + struct_size);
+    double* curr_values = values_start;
     for (int i = 0; i < num_layers - 1; i++) {
         int l1_count = layers[i];
         int l2_count = layers[i + 1];
-        Matrix* curr_matrix = create_matrix(l2_count, l1_count);
-        for (int j = 0; j < l2_count; j++) {
-            for (int k = 0; k < l1_count; k++) {
-                set_matrix_value(curr_matrix, j, k, fake_random(j, k));
-            }
+        
+        curr_weights[i].rows = l2_count;
+        curr_weights[i].columns = l1_count;
+        curr_weights[i].values = curr_values;
+
+        int offset = l1_count * l2_count;
+        curr_values += offset;
+
+        for (int j = 0; j < offset; j++) {
+            curr_weights[i].values[j] = fake_random(j / l1_count, j % l1_count);
         }
-        curr_weights[i] = curr_matrix;
     }
     network->weights = curr_weights;
 
-    Matrix **biases = malloc(sizeof(Matrix*) * num_layers);
+    Matrix *biases = malloc(struct_size + sizeof(double) * layers_sum);
+    double* biases_start = (double*)((uint8_t*)biases + struct_size);
+    double* last_biases = biases_start;
     for (int i = 0; i < num_layers - 1; i++) {
-        int l_count = layers[i+1];
-        Matrix *curr_bias = create_matrix(l_count, 1);
-        for (int i = 0; i < l_count; i++) {
-            set_matrix_value(curr_bias, i, 0, 0);
-        }
-        biases[i] = curr_bias;
+        biases[i].rows = layers[i+1];
+        biases[i].columns = 1;
+        biases[i].values = last_biases;
+        memset(biases[i].values, 0, layers[i+1]);
+
+        last_biases += layers[i+1];
     }
     network->biases = biases;
     return network;
 }
 
 void free_network(Network* network) {
-    for (int i = 0; i < network->num_layers-1; i++) {
-        Matrix* weight = network->weights[i];
-        free_matrix(weight);
-        Matrix* bias = network->biases[i];
-        free_matrix(bias);
-    }
     free(network->weights);
     free(network->biases);
     free(network->layers);
@@ -74,17 +85,19 @@ double sigmoid_prime(double input) {
 }
 
 Matrix* cost_derivative(Matrix* activations, Matrix* y) {
-    return subtract_matrices(activations, y);
+    Matrix* new_matrix = create_matrix(activations->rows, activations->columns);
+    subtract_matrices(activations, y, new_matrix);
+    return new_matrix;
 }
 
 void feed_forward_for_backprop(Network* network, Matrix* input, Matrix** activations, Matrix** pre_activations) {
     Matrix* current = input;
     for (int i = 0; i < network->num_layers - 1; i++) {
-        Matrix* weights = network->weights[i];
-        Matrix* biases = network->biases[i];
+        Matrix weights = network->weights[i];
+        Matrix biases = network->biases[i];
         
-        Matrix* product = multiply_matrices(weights, current);
-        Matrix* sum = add_matrices(product, biases);
+        Matrix* product = multiply_matrices(&weights, current);
+        Matrix* sum = add_matrices(product, &biases);
         pre_activations[i] = sum;
         free_matrix(product);
     
@@ -97,11 +110,11 @@ void feed_forward_for_backprop(Network* network, Matrix* input, Matrix** activat
 Matrix* feed_forward(Network* network, Matrix* input) {
     Matrix* current = input;
     for (int i = 0; i < network->num_layers - 1; i++) {
-        Matrix* weights = network->weights[i];
-        Matrix* biases = network->biases[i];
+        Matrix weights = network->weights[i];
+        Matrix biases = network->biases[i];
         
-        Matrix* product = multiply_matrices(weights, current);
-        Matrix* sum = add_matrices(product, biases);
+        Matrix* product = multiply_matrices(&weights, current);
+        Matrix* sum = add_matrices(product, &biases);
         free_matrix(product);
     
         Matrix* sigmoid_m = element_wise_operation(sum, sigmoid);
@@ -143,7 +156,7 @@ void backpropagation(Network* network, Matrix* input, Matrix* output, Matrix*** 
     for (int i = size - 2; i >= 0; i--) {
         Matrix* pre_activation = pre_activations[i];
         Matrix* sig_dev_pre_activation = element_wise_operation(pre_activation, sigmoid_prime);
-        Matrix* weight_t = transpose_matrix(network->weights[i + 1]);
+        Matrix* weight_t = transpose_matrix(&network->weights[i + 1]);
         Matrix* weight_x_error = multiply_matrices(weight_t, error);
         error = hadamard_product(weight_x_error, sig_dev_pre_activation);
         
@@ -165,12 +178,13 @@ void backpropagation(Network* network, Matrix* input, Matrix* output, Matrix*** 
     }
     free(activations);
 
+
     // Return
     (*output_delta_b) = delta_b;
     (*output_delta_w) = delta_w;
 }
 
-void update_with_samples(Network *network, Matrix **input, Matrix **output, double learning_rate, int start_index) {
+void update_with_samples(Network *network, Matrix *input, Matrix *output, double learning_rate, int start_index) {
     Matrix **delta_w_sums = malloc(sizeof(Matrix*) * (network->num_layers - 1));
     Matrix **delta_b_sums = malloc(sizeof(Matrix*) * (network->num_layers - 1));
     for (int i = 0; i < network->num_layers - 1; i++) {
@@ -183,7 +197,7 @@ void update_with_samples(Network *network, Matrix **input, Matrix **output, doub
     for (int i = 0; i < SAMPLE_SIZE; i++) {
         Matrix** delta_w;
         Matrix** delta_b;
-        backpropagation(network, input[start_index + i], output[start_index + i], &delta_w, &delta_b);
+        backpropagation(network, &input[start_index + i], &output[start_index + i], &delta_w, &delta_b);
         
         for (int i = 0; i < network->num_layers - 1; i++) {
             Matrix* curr_w_sum = delta_w_sums[i];
@@ -202,15 +216,12 @@ void update_with_samples(Network *network, Matrix **input, Matrix **output, doub
     double to_mult = (learning_rate/SAMPLE_SIZE);
     for (int i = 0; i < network->num_layers - 1; i++) {
         Matrix* w_multiplied = scalar_multiply_matrix(delta_w_sums[i], to_mult);
-        Matrix* prev_weights = network->weights[i];
-        network->weights[i] = subtract_matrices(prev_weights, w_multiplied);
-        free_matrix(prev_weights);
+        subtract_matrices(&network->weights[i], w_multiplied, &network->weights[i]);
+
         free_matrix(w_multiplied);
 
         Matrix* b_multiplied = scalar_multiply_matrix(delta_b_sums[i], to_mult);
-        Matrix* prev_biases = network->biases[i];
-        network->biases[i] = subtract_matrices(prev_biases, b_multiplied);
-        free_matrix(prev_biases);
+        subtract_matrices(&network->biases[i], b_multiplied, &network->biases[i]);
         free_matrix(b_multiplied);
     }
 
