@@ -4,6 +4,7 @@
 #include "matrices.h"
 #include "read_file.h"
 #include "network.h"
+#include <time.h>
 
 #define BASE_DIR "./mnist-dataset"
 
@@ -21,33 +22,38 @@ void matrix_test() {
   free_matrix(m1);
 }
 
-void read_training_files(Matrix*** input_img, Matrix*** input_label) {
-  Matrix** labels = read_label_file(TRAINING_LABELS);
+void read_training_files(Matrix*** input_img, Matrix*** input_label, int *input_size) {
+  int size;
+  Matrix** labels = read_label_file(TRAINING_LABELS, &size);
   Matrix** images = read_images(TRAINING_IMAGES);
 
   (*input_img) = images;
   (*input_label) = labels;
+  (*input_size) = size;
 }
 
-void read_test_files(Matrix*** input_img, uint8_t **input_label) {
+void read_test_files(Matrix*** input_img, uint8_t **input_label, int* input_size) {
   int size;
   uint8_t* labels = read_labels_as_int(TESTING_LABELS, &size);
   Matrix** images = read_images(TESTING_IMAGES);
 
   (*input_img) = images;
   (*input_label) = labels;
+  (*input_size) = size;
 }
 
 Network* train() {
   printf("Training has begun\n");
+  clock_t start = clock();
+
   int layers[3] = { (28*28), 30, 10 };
   Network *network = initialize_network(layers, 3);
 
   Matrix** input;
   Matrix** output;
-  read_training_files(&input, &output);
+  int training_count;
+  read_training_files(&input, &output, &training_count);
   
-  int training_count = 60000;
   for (int i = 0; i < training_count; i+=10) {
     if (i % 10000 == 0) {
       printf("Trained %d entries\n", i);
@@ -55,9 +61,11 @@ Network* train() {
     update_with_samples(network, input, output, 0.5, i);
   }
 
-  printf("Training complete!\n\n");
   free_matrices(input, 60000);
   free_matrices(output, 60000);
+
+  clock_t end = clock();
+  printf("Training complete! Training %d samples took %.2f seconds\n", training_count, (double)(end - start) / CLOCKS_PER_SEC);
   return network;
 }
 
@@ -65,10 +73,10 @@ void measure_performance(Network* network) {
   printf("Testing started\n");
   Matrix** input;
   uint8_t *output;
-  read_test_files(&input, &output);
+  int total_samples;
+  read_test_files(&input, &output, &total_samples);
 
   int success = 0;
-  int total_samples = 10000;
   for (int i = 0; i < total_samples; i++) {
     Matrix* result = feed_forward(network, input[i]);
     uint8_t num_result = convert_label_to_number(result);

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "matrices.h"
 
-Matrix** read_label_file(char* file_name);
+Matrix** read_label_file(char* file_name, int* file_size);
 
 uint8_t* read_labels_as_int(char* file_name, int* file_size);
 
