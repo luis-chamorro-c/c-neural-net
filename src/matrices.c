@@ -93,7 +93,7 @@ void print_matrix(Matrix* matrix) {
     for (int i = 0; i < matrix->rows; i++) {
         for (int j = 0; j < matrix->columns; j++) {
             double value = matrix->values[_get_index(matrix, i, j)];
-            printf("%5.2f ", value);
+            printf("%5.9f ", value);
         }
         printf("\n");
     }

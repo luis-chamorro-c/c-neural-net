@@ -96,8 +96,9 @@ void feed_forward_for_backprop(Network* network, Matrix* input, Matrix* activati
         Matrix* intermediate = multiply_matrices(weights, current);
         add_matrices(intermediate, biases, &pre_activations[i]);
     
-        element_wise_operation(intermediate, sigmoid, &activations[i+1]);
+        element_wise_operation(&pre_activations[i], sigmoid, &activations[i+1]);
         current = &activations[i+1];
+        free_matrix(intermediate);
     }
 }
 
@@ -196,6 +197,7 @@ void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matri
         }
 
         free_matrices(delta_w, network->num_layers-1);
+        free(delta_b);
     }
 
     double to_mult = (learning_rate/SAMPLE_SIZE);
