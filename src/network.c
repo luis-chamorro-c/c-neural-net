@@ -1,5 +1,6 @@
 #include "matrices.h"
 #include "network.h"
+#include "matrix_arena.h"
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
@@ -7,6 +8,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <stdalign.h>
 
 const static int SAMPLE_SIZE = 10;
 
@@ -26,6 +28,7 @@ Network *initialize_network(int* layers, int num_layers) {
     network->layers = layers_copy;
 
     int struct_size = sizeof(Matrix) * (num_layers - 1);
+    size_t aligned_struct_size = ALIGN_UP(struct_size, double);
 
     int num_entries = 0;
     int layers_sum = 0;
@@ -34,8 +37,8 @@ Network *initialize_network(int* layers, int num_layers) {
         layers_sum += layers[i+1];
     }
     
-    Matrix* curr_weights = malloc(struct_size + (sizeof(double) * num_entries));
-    double* values_start = (double*)((uint8_t*)curr_weights + struct_size);
+    Matrix* curr_weights = malloc(aligned_struct_size + (sizeof(double) * num_entries));
+    double* values_start = (double*)((uint8_t*)curr_weights + aligned_struct_size);
     double* curr_values = values_start;
     for (int i = 0; i < num_layers - 1; i++) {
         int l1_count = layers[i];
@@ -54,8 +57,8 @@ Network *initialize_network(int* layers, int num_layers) {
     }
     network->weights = curr_weights;
 
-    Matrix *biases = malloc(struct_size + sizeof(double) * layers_sum);
-    double* biases_start = (double*)((uint8_t*)biases + struct_size);
+    Matrix *biases = malloc(aligned_struct_size + sizeof(double) * layers_sum);
+    double* biases_start = (double*)((uint8_t*)biases + aligned_struct_size);
     double* last_biases = biases_start;
     for (int i = 0; i < num_layers - 1; i++) {
         biases[i].rows = layers[i+1];
@@ -84,147 +87,126 @@ double sigmoid_prime(double input) {
     return sigmoid(input) * (1-sigmoid(input));
 }
 
-Matrix* cost_derivative(Matrix* activations, Matrix* y) {
-    Matrix* new_matrix = create_matrix(activations->rows, activations->columns);
-    subtract_matrices(activations, y, new_matrix);
-    return new_matrix;
-}
-
-void feed_forward_for_backprop(Network* network, Matrix* input, Matrix** activations, Matrix** pre_activations) {
+void feed_forward_for_backprop(Network* network, Matrix* input, Matrix* activations, Matrix* pre_activations) {
     Matrix* current = input;
     for (int i = 0; i < network->num_layers - 1; i++) {
-        Matrix weights = network->weights[i];
-        Matrix biases = network->biases[i];
+        Matrix *weights = &network->weights[i];
+        Matrix *biases = &network->biases[i];
         
-        Matrix* product = multiply_matrices(&weights, current);
-        Matrix* sum = add_matrices(product, &biases);
-        pre_activations[i] = sum;
-        free_matrix(product);
+        Matrix* intermediate = multiply_matrices(weights, current);
+        add_matrices(intermediate, biases, &pre_activations[i]);
     
-        Matrix* sigmoid_m = element_wise_operation(sum, sigmoid);
-        activations[i+1] = sigmoid_m;
-        current = sigmoid_m;
+        element_wise_operation(intermediate, sigmoid, &activations[i+1]);
+        current = &activations[i+1];
     }
 }
 
 Matrix* feed_forward(Network* network, Matrix* input) {
     Matrix* current = input;
     for (int i = 0; i < network->num_layers - 1; i++) {
-        Matrix weights = network->weights[i];
-        Matrix biases = network->biases[i];
+        Matrix *weights = &network->weights[i];
+        Matrix *biases = &network->biases[i];
         
-        Matrix* product = multiply_matrices(&weights, current);
-        Matrix* sum = add_matrices(product, &biases);
-        free_matrix(product);
+        Matrix* intermediate = multiply_matrices(weights, current);
+        add_matrices(intermediate, biases, intermediate);
     
-        Matrix* sigmoid_m = element_wise_operation(sum, sigmoid);
+        element_wise_operation(intermediate, sigmoid, intermediate);
         Matrix* prev_current = current;
-        current = sigmoid_m;
+        current = intermediate;
         if (i > 0) {
             free_matrix(prev_current);
         }
-        free_matrix(sum);
     }
     return current;
 }
 
-void backpropagation(Network* network, Matrix* input, Matrix* output, Matrix*** output_delta_w, Matrix*** output_delta_b) {
+void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* output, Matrix*** output_delta_w, Matrix*** output_delta_b) {
     int size = network->num_layers - 1;
-    Matrix** activations = malloc(sizeof(Matrix*) * network->num_layers);
-    activations[0] = input;
-    Matrix** pre_activations = malloc(sizeof(Matrix*) * size);
+    int columns[network->num_layers];
+    for (int i = 0; i < network->num_layers; i++) {
+        columns[i] = 1;
+    }
+    Matrix *activations = allocate_matrices(arena, network->layers, columns, network->num_layers);
+    activations[0] = *input;
+    Matrix* pre_activations = allocate_matrices(arena, network->layers + 1, columns, size);
     
     feed_forward_for_backprop(network, input, activations, pre_activations);
 
     // Get error for last layer
-    Matrix* cost_der = cost_derivative(activations[network->num_layers - 1], output);
-    Matrix* sigmoid_der = element_wise_operation(pre_activations[size - 1], sigmoid_prime);
-    Matrix* error = hadamard_product(cost_der, sigmoid_der);
-    free_matrix(cost_der);
-    free_matrix(sigmoid_der);
+    Matrix *error = allocate_matrix(arena, output->rows, output->columns);
+    Matrix *sigmoid_der = allocate_matrix(arena, output->rows, output->columns);
+
+    subtract_matrices(&activations[network->num_layers - 1], output, error);
+    element_wise_operation(&pre_activations[size - 1], sigmoid_prime, sigmoid_der);
+    hadamard_product(error, sigmoid_der, error);
 
     // Compute partial derivative of bias and weights for last layer
     Matrix** delta_b = malloc(sizeof(Matrix*) * size);
     Matrix** delta_w = malloc(sizeof(Matrix*) * size);
 
     delta_b[size - 1] = error;
-    Matrix* activation_t = transpose_matrix(activations[size - 1]);
+    Matrix* activation_t = transpose_matrix(&activations[size - 1]);
     delta_w[size - 1] = multiply_matrices(error, activation_t);
     free_matrix(activation_t);
 
     // Compute partial derivative of bias and weights for every other layer
     for (int i = size - 2; i >= 0; i--) {
-        Matrix* pre_activation = pre_activations[i];
-        Matrix* sig_dev_pre_activation = element_wise_operation(pre_activation, sigmoid_prime);
+        Matrix* pre_activation = &pre_activations[i];
+        Matrix* sig_dev_pre_activation = allocate_matrix(arena, pre_activation->rows, pre_activation->columns);
+        element_wise_operation(pre_activation, sigmoid_prime, sig_dev_pre_activation);
         Matrix* weight_t = transpose_matrix(&network->weights[i + 1]);
         Matrix* weight_x_error = multiply_matrices(weight_t, error);
-        error = hadamard_product(weight_x_error, sig_dev_pre_activation);
+        Matrix* new_error = allocate_matrix(arena, sig_dev_pre_activation->rows, sig_dev_pre_activation->columns);
+        hadamard_product(weight_x_error, sig_dev_pre_activation, new_error);
+        error = new_error;
         
-        free_matrix(sig_dev_pre_activation);
         free_matrix(weight_t);
         free_matrix(weight_x_error);
 
         delta_b[i] = error;
-        Matrix* activ_t = transpose_matrix(activations[i]);
+        Matrix* activ_t = transpose_matrix(&activations[i]);
         delta_w[i] = multiply_matrices(error, activ_t);
         free_matrix(activ_t);
     }
-
-    // Clean up
-    free_matrices(pre_activations, size);
-    for (int i = 1; i < network->num_layers; i++) {
-        // cant free first one cause that's the input we passed in
-        free_matrix(activations[i]);
-    }
-    free(activations);
-
 
     // Return
     (*output_delta_b) = delta_b;
     (*output_delta_w) = delta_w;
 }
 
-void update_with_samples(Network *network, Matrix *input, Matrix *output, double learning_rate, int start_index) {
-    Matrix **delta_w_sums = malloc(sizeof(Matrix*) * (network->num_layers - 1));
-    Matrix **delta_b_sums = malloc(sizeof(Matrix*) * (network->num_layers - 1));
-    for (int i = 0; i < network->num_layers - 1; i++) {
-        delta_w_sums[i] = create_matrix(network->layers[i+1], network->layers[i]);
+void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matrix *output, double learning_rate, int start_index) {
+    Matrix *delta_w_sums = allocate_matrices(arena, (network->layers + 1), network->layers, network->num_layers - 1);
+    int columns[network->num_layers -1];
+    for (int i = 0; i < network->num_layers; i++) {
+        columns[i] = 1;
     }
-    for (int i = 0; i < network->num_layers - 1; i++) {
-        delta_b_sums[i] = create_matrix(network->layers[i+1], 1);
-    }
+    Matrix *delta_b_sums = allocate_matrices(arena, (network->layers + 1), columns, network->num_layers - 1);
 
     for (int i = 0; i < SAMPLE_SIZE; i++) {
         Matrix** delta_w;
         Matrix** delta_b;
-        backpropagation(network, &input[start_index + i], &output[start_index + i], &delta_w, &delta_b);
+        backpropagation(arena, network, &input[start_index + i], &output[start_index + i], &delta_w, &delta_b);
         
         for (int i = 0; i < network->num_layers - 1; i++) {
-            Matrix* curr_w_sum = delta_w_sums[i];
-            delta_w_sums[i] = add_matrices(curr_w_sum, delta_w[i]);
+            Matrix* curr_w_sum = &delta_w_sums[i];
+            add_matrices(curr_w_sum, delta_w[i], curr_w_sum);
 
-            free_matrix(curr_w_sum);
-            Matrix* curr_b_sum = delta_b_sums[i];
-            delta_b_sums[i] = add_matrices(curr_b_sum, delta_b[i]);
-            free_matrix(curr_b_sum);
+            Matrix* curr_b_sum = &delta_b_sums[i];
+            add_matrices(curr_b_sum, delta_b[i], curr_b_sum);
         }
 
         free_matrices(delta_w, network->num_layers-1);
-        free_matrices(delta_b, network->num_layers-1);
     }
 
     double to_mult = (learning_rate/SAMPLE_SIZE);
     for (int i = 0; i < network->num_layers - 1; i++) {
-        Matrix* w_multiplied = scalar_multiply_matrix(delta_w_sums[i], to_mult);
+        Matrix* w_multiplied = scalar_multiply_matrix(&delta_w_sums[i], to_mult);
         subtract_matrices(&network->weights[i], w_multiplied, &network->weights[i]);
 
         free_matrix(w_multiplied);
 
-        Matrix* b_multiplied = scalar_multiply_matrix(delta_b_sums[i], to_mult);
+        Matrix* b_multiplied = scalar_multiply_matrix(&delta_b_sums[i], to_mult);
         subtract_matrices(&network->biases[i], b_multiplied, &network->biases[i]);
         free_matrix(b_multiplied);
     }
-
-    free_matrices(delta_w_sums, network->num_layers - 1);
-    free_matrices(delta_b_sums, network->num_layers - 1);
 }

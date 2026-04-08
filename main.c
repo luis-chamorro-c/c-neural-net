@@ -5,6 +5,7 @@
 #include "read_file.h"
 #include "network.h"
 #include <time.h>
+#include "matrix_arena.h"
 
 #define BASE_DIR "/Users/luischamorro/repo/c-neural-net/mnist-dataset"
 
@@ -15,11 +16,29 @@
 #define TESTING_IMAGES BASE_DIR"/t10k-images-idx3-ubyte/t10k-images-idx3-ubyte"
 
 void matrix_test() {
-  double myVals[12] = { 0.0, 1.0, 2.0, 3.0, 4.0, 5};
-  Matrix* m1 = create_matrix_with_values(2, 3, myVals);
+  MatArena *arena = allocate_arena(MB(5));
+
+  int rows[] = { 3, 5, 1};
+  int columns[] = { 2, 5, 4 };
+
+  Matrix* m_arr = allocate_matrices(arena, rows, columns, 3);
   
-  print_matrix(m1);
-  free_matrix(m1);
+  double count = 0;
+  for (int i = 0; i < 3; i++) {
+    Matrix *m = &m_arr[i];
+    for (int j = 0; j < m->rows; j++) {
+      for (int k = 0; k < m->columns; k++) {
+        set_matrix_value(m, j, k, count);
+        count++;
+      }
+    }
+  }
+
+  for (int i = 0; i < 3; i++) {
+    print_matrix(&m_arr[i]);
+  }
+
+  free_arena(arena);
 }
 
 void read_training_files(Matrix** input_img, Matrix** input_label, int *input_size) {
@@ -54,12 +73,15 @@ Network* train() {
   int training_count;
   read_training_files(&input, &output, &training_count);
   
+  MatArena *arena = allocate_arena(MB(30));
   for (int i = 0; i < training_count; i+=10) {
     if (i % 10000 == 0) {
       printf("Trained %d entries\n", i);
     }
-    update_with_samples(network, input, output, 0.5, i);
+    update_with_samples(arena, network, input, output, 0.5, i);
+    clear_arena(arena);
   }
+  free_arena(arena);
 
   free(input);
   free(output);

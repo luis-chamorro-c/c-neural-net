@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdalign.h>
 
 int _get_index(Matrix* matrix, int row, int column) {
     return (row * matrix->columns) + column;
@@ -13,12 +14,14 @@ void _set_matrix_value(Matrix* matrix, int row, int column, double value) {
 }
 
 Matrix* create_matrices(int rows, int columns, int num_matrices) {
-    int struct_size = sizeof(Matrix) * num_matrices;
-    int arr_size = sizeof(double) * rows * columns * num_matrices;
-    void* memory_block = malloc(struct_size + arr_size);
+    size_t struct_size = sizeof(Matrix) * num_matrices;
+    size_t aligned_struct_size = ALIGN_UP(struct_size, double);
+
+    size_t arr_size = sizeof(double) * rows * columns * num_matrices;
+    void* memory_block = malloc(aligned_struct_size + arr_size);
 
     Matrix* matrix_list = (Matrix*)memory_block;
-    double* arr_start = (double*)((uint8_t*)memory_block + struct_size);
+    double* arr_start = (double*)((uint8_t*)memory_block + aligned_struct_size);
 
     for (int i = 0; i < num_matrices; i++) {
         matrix_list[i].rows = rows * columns;
@@ -107,7 +110,7 @@ Matrix* transpose_matrix(Matrix* matrix) {
     return transposed;
 }
 
-Matrix* add_matrices(Matrix* m1, Matrix* m2) {
+void add_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
     if (m1->columns != m2->columns || m1->rows != m2->rows) {
         fprintf(stderr, "Incorrect dimensions for matrix addition. Received (%d, %d), (%d, %d)\n",
             m1->rows, m1->columns, m2->rows, m2->columns);
@@ -115,16 +118,10 @@ Matrix* add_matrices(Matrix* m1, Matrix* m2) {
     }
     int rows = m1->rows;
     int cols = m1->columns;
-    Matrix* sum = create_matrix(rows, cols);
-    
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            double d1 = get_matrix_value(m1, i, j);
-            double d2 = get_matrix_value(m2, i, j);
-            set_matrix_value(sum, i, j, d1 + d2);
-        }
+
+    for (int i = 0; i < rows * cols; i++) {
+        out->values[i] = m1->values[i] + m2->values[i];
     }
-    return sum;
 }
 
 void subtract_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
@@ -141,7 +138,7 @@ void subtract_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
     }
 }
 
-Matrix* hadamard_product(Matrix* m1, Matrix* m2) {
+void hadamard_product(Matrix* m1, Matrix* m2, Matrix* out) {
     if (m1->columns != m2->columns || m1->rows != m2->rows) {
         fprintf(stderr, "Incorrect dimensions for matrix subtraction\n");
         exit(EXIT_FAILURE);
@@ -150,27 +147,16 @@ Matrix* hadamard_product(Matrix* m1, Matrix* m2) {
     int cols = m1->columns;
     Matrix* sum = create_matrix(rows, cols);
     
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            double d1 = get_matrix_value(m1, i, j);
-            double d2 = get_matrix_value(m2, i, j);
-            set_matrix_value(sum, i, j, d1 * d2);
-        }
+    for (int i = 0; i < rows * cols; i++) {
+        out->values[i] = m1->values[i] * m2->values[i];
     }
-    return sum;
 }
 
 
-Matrix* element_wise_operation(Matrix* matrix, double (*func)(double)) {
-    Matrix* result = create_matrix(matrix->rows, matrix->columns);
-    for (int i = 0; i < matrix->rows; i++) {
-        for (int j = 0; j < matrix->columns; j++) {
-            double v = get_matrix_value(matrix, i, j);
-            double result_value = func(v);
-            _set_matrix_value(result, i, j, result_value);
-        }
+void element_wise_operation(Matrix* matrix, double (*func)(double), Matrix* out) {
+    for (int i = 0; i < matrix->rows * matrix->columns; i++) {
+        out->values[i] = func(matrix->values[i]);
     }
-    return result;
 }
 
 Matrix* scalar_multiply_matrix(Matrix* matrix, double scalar) {

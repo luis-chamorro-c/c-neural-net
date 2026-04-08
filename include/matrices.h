@@ -2,6 +2,9 @@
 #define MATRICES_H
 
 #include <stdint.h>
+#include <stdalign.h>
+
+#define ALIGN_UP(size, align) (((size) + alignof(align) - 1) & ~(alignof(align) - 1))
 
 typedef struct { 
     double* values;
@@ -29,13 +32,13 @@ void print_matrix(Matrix* matrix);
 
 Matrix* transpose_matrix(Matrix* matrix);
 
-Matrix* add_matrices(Matrix* m1, Matrix* m2);
+void add_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 
 void subtract_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 
-Matrix* hadamard_product(Matrix* m1, Matrix* m2);
+void hadamard_product(Matrix* m1, Matrix* m2, Matrix* out);
 
-Matrix* element_wise_operation(Matrix* matrix, double (*func)(double));
+void element_wise_operation(Matrix* matrix, double (*func)(double), Matrix* out);
 
 Matrix* scalar_multiply_matrix(Matrix* matrix, double scalar);
 
