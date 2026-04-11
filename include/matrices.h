@@ -42,7 +42,7 @@ void element_wise_operation(Matrix* matrix, double (*func)(double), Matrix* out)
 
 Matrix* scalar_multiply_matrix(Matrix* matrix, double scalar);
 
-Matrix* multiply_matrices(Matrix* m1, Matrix* m2);
+void multiply_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 
 double get_cost(Matrix* m1, Matrix* m2);
 

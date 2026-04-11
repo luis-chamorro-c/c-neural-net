@@ -145,7 +145,6 @@ void hadamard_product(Matrix* m1, Matrix* m2, Matrix* out) {
     }
     int rows = m1->rows;
     int cols = m1->columns;
-    Matrix* sum = create_matrix(rows, cols);
     
     for (int i = 0; i < rows * cols; i++) {
         out->values[i] = m1->values[i] * m2->values[i];
@@ -178,19 +177,17 @@ double _get_matrix_product_at(Matrix* m1, Matrix* m2, int row, int column) {
     return sum;
 }
 
-Matrix* multiply_matrices(Matrix* m1, Matrix* m2) {
+void multiply_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
     if (m1->columns != m2->rows) {
         fprintf(stderr, "Incorrect dimensions for matrix multiplication\n");
         exit(EXIT_FAILURE);
     }
-    Matrix* product = create_matrix(m1->rows, m2->columns);
     for (int i = 0; i < m1->rows; i++) {
         for (int j = 0; j < m2->columns; j++) {
             double value = _get_matrix_product_at(m1, m2, i, j);
-            set_matrix_value(product, i, j, value);
+            set_matrix_value(out, i, j, value);
         }
     }
-    return product;
 }
 
 double get_cost(Matrix* m1, Matrix* m2) {

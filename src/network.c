@@ -93,7 +93,8 @@ void feed_forward_for_backprop(Network* network, Matrix* input, Matrix* activati
         Matrix *weights = &network->weights[i];
         Matrix *biases = &network->biases[i];
         
-        Matrix* intermediate = multiply_matrices(weights, current);
+        Matrix* intermediate = create_matrix(weights->rows, current->columns);
+        multiply_matrices(weights, current, intermediate);
         add_matrices(intermediate, biases, &pre_activations[i]);
     
         element_wise_operation(&pre_activations[i], sigmoid, &activations[i+1]);
@@ -108,7 +109,8 @@ Matrix* feed_forward(Network* network, Matrix* input) {
         Matrix *weights = &network->weights[i];
         Matrix *biases = &network->biases[i];
         
-        Matrix* intermediate = multiply_matrices(weights, current);
+        Matrix* intermediate = create_matrix(weights->rows, current->columns);
+        multiply_matrices(weights, current, intermediate);
         add_matrices(intermediate, biases, intermediate);
     
         element_wise_operation(intermediate, sigmoid, intermediate);
@@ -121,7 +123,7 @@ Matrix* feed_forward(Network* network, Matrix* input) {
     return current;
 }
 
-void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* output, Matrix*** output_delta_w, Matrix*** output_delta_b) {
+void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* output, Matrix* delta_w, Matrix* delta_b) {
     int size = network->num_layers - 1;
     int columns[network->num_layers];
     for (int i = 0; i < network->num_layers; i++) {
@@ -133,21 +135,17 @@ void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* o
     
     feed_forward_for_backprop(network, input, activations, pre_activations);
 
-    // Get error for last layer
-    Matrix *error = allocate_matrix(arena, output->rows, output->columns);
+    // Calculate error for last layer
+    Matrix *error = &delta_b[size - 1];
     Matrix *sigmoid_der = allocate_matrix(arena, output->rows, output->columns);
 
     subtract_matrices(&activations[network->num_layers - 1], output, error);
     element_wise_operation(&pre_activations[size - 1], sigmoid_prime, sigmoid_der);
     hadamard_product(error, sigmoid_der, error);
 
-    // Compute partial derivative of bias and weights for last layer
-    Matrix** delta_b = malloc(sizeof(Matrix*) * size);
-    Matrix** delta_w = malloc(sizeof(Matrix*) * size);
 
-    delta_b[size - 1] = error;
     Matrix* activation_t = transpose_matrix(&activations[size - 1]);
-    delta_w[size - 1] = multiply_matrices(error, activation_t);
+    multiply_matrices(&delta_b[size - 1], activation_t, &delta_w[size - 1]);
     free_matrix(activation_t);
 
     // Compute partial derivative of bias and weights for every other layer
@@ -155,24 +153,19 @@ void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* o
         Matrix* pre_activation = &pre_activations[i];
         Matrix* sig_dev_pre_activation = allocate_matrix(arena, pre_activation->rows, pre_activation->columns);
         element_wise_operation(pre_activation, sigmoid_prime, sig_dev_pre_activation);
-        Matrix* weight_t = transpose_matrix(&network->weights[i + 1]);
-        Matrix* weight_x_error = multiply_matrices(weight_t, error);
-        Matrix* new_error = allocate_matrix(arena, sig_dev_pre_activation->rows, sig_dev_pre_activation->columns);
-        hadamard_product(weight_x_error, sig_dev_pre_activation, new_error);
-        error = new_error;
         
-        free_matrix(weight_t);
-        free_matrix(weight_x_error);
+        Matrix* weight_t = transpose_matrix(&network->weights[i + 1]);
+        Matrix* weight_x_error = allocate_matrix(arena, weight_t->rows, error->columns);
+        multiply_matrices(weight_t, error, weight_x_error);
+        hadamard_product(weight_x_error, sig_dev_pre_activation, &delta_b[i]);
+        error =  &delta_b[i];
 
-        delta_b[i] = error;
+        free_matrix(weight_t);
+
         Matrix* activ_t = transpose_matrix(&activations[i]);
-        delta_w[i] = multiply_matrices(error, activ_t);
+        multiply_matrices(error, activ_t, &delta_w[i]);
         free_matrix(activ_t);
     }
-
-    // Return
-    (*output_delta_b) = delta_b;
-    (*output_delta_w) = delta_w;
 }
 
 void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matrix *output, double learning_rate, int start_index) {
@@ -184,20 +177,17 @@ void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matri
     Matrix *delta_b_sums = allocate_matrices(arena, (network->layers + 1), columns, network->num_layers - 1);
 
     for (int i = 0; i < SAMPLE_SIZE; i++) {
-        Matrix** delta_w;
-        Matrix** delta_b;
-        backpropagation(arena, network, &input[start_index + i], &output[start_index + i], &delta_w, &delta_b);
+        Matrix *delta_w = allocate_matrices(arena, (network->layers + 1), network->layers, network->num_layers - 1);
+        Matrix *delta_b = allocate_matrices(arena, (network->layers + 1), columns, network->num_layers - 1);
+        backpropagation(arena, network, &input[start_index + i], &output[start_index + i], delta_w, delta_b);
         
         for (int i = 0; i < network->num_layers - 1; i++) {
             Matrix* curr_w_sum = &delta_w_sums[i];
-            add_matrices(curr_w_sum, delta_w[i], curr_w_sum);
+            add_matrices(curr_w_sum, &delta_w[i], curr_w_sum);
 
             Matrix* curr_b_sum = &delta_b_sums[i];
-            add_matrices(curr_b_sum, delta_b[i], curr_b_sum);
+            add_matrices(curr_b_sum, &delta_b[i], curr_b_sum);
         }
-
-        free_matrices(delta_w, network->num_layers-1);
-        free(delta_b);
     }
 
     double to_mult = (learning_rate/SAMPLE_SIZE);
