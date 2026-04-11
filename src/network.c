@@ -103,22 +103,31 @@ void feed_forward_for_backprop(Network* network, Matrix* input, Matrix* activati
     }
 }
 
-Matrix* feed_forward(Network* network, Matrix* input) {
+Matrix* transpose(MatArena *arena, Matrix* m) {
+    Matrix *transposed = allocate_matrix(arena, m->columns, m->rows);
+    transpose_matrix(m, transposed);
+    return transposed;
+}
+
+void transpose_in_place(Matrix* m) {
+    double rows = m->rows;
+    m->rows = m->columns;
+    m->columns = rows;
+}
+
+Matrix* feed_forward(MatArena *arena, Network* network, Matrix* input) {
     Matrix* current = input;
     for (int i = 0; i < network->num_layers - 1; i++) {
         Matrix *weights = &network->weights[i];
         Matrix *biases = &network->biases[i];
         
-        Matrix* intermediate = create_matrix(weights->rows, current->columns);
+        Matrix* intermediate = allocate_matrix(arena, weights->rows, current->columns);
         multiply_matrices(weights, current, intermediate);
         add_matrices(intermediate, biases, intermediate);
     
         element_wise_operation(intermediate, sigmoid, intermediate);
         Matrix* prev_current = current;
         current = intermediate;
-        if (i > 0) {
-            free_matrix(prev_current);
-        }
     }
     return current;
 }
@@ -144,9 +153,12 @@ void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* o
     hadamard_product(error, sigmoid_der, error);
 
 
-    Matrix* activation_t = transpose_matrix(&activations[size - 1]);
-    multiply_matrices(&delta_b[size - 1], activation_t, &delta_w[size - 1]);
-    free_matrix(activation_t);
+    Matrix *last_activ = &activations[size - 1];
+    // Single row matrix, double transpose in place is faster than re-creating the matrix
+    transpose_in_place(last_activ);
+    multiply_matrices(&delta_b[size - 1], last_activ, &delta_w[size - 1]);
+    transpose_in_place(last_activ);
+
 
     // Compute partial derivative of bias and weights for every other layer
     for (int i = size - 2; i >= 0; i--) {
@@ -154,17 +166,17 @@ void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* o
         Matrix* sig_dev_pre_activation = allocate_matrix(arena, pre_activation->rows, pre_activation->columns);
         element_wise_operation(pre_activation, sigmoid_prime, sig_dev_pre_activation);
         
-        Matrix* weight_t = transpose_matrix(&network->weights[i + 1]);
+        Matrix* weight_t = transpose(arena, &network->weights[i + 1]);
         Matrix* weight_x_error = allocate_matrix(arena, weight_t->rows, error->columns);
         multiply_matrices(weight_t, error, weight_x_error);
         hadamard_product(weight_x_error, sig_dev_pre_activation, &delta_b[i]);
         error =  &delta_b[i];
 
-        free_matrix(weight_t);
-
-        Matrix* activ_t = transpose_matrix(&activations[i]);
-        multiply_matrices(error, activ_t, &delta_w[i]);
-        free_matrix(activ_t);
+        Matrix *curr_activ = &activations[i];
+        // Single row matrix, double transpose in place is faster than re-creating the matrix
+        transpose_in_place(curr_activ);
+        multiply_matrices(error, curr_activ, &delta_w[i]);
+        transpose_in_place(curr_activ);
     }
 }
 

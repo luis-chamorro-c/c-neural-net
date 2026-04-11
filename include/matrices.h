@@ -30,7 +30,7 @@ int set_matrix_values(Matrix* matrix, int row, double* values, int length);
 
 void print_matrix(Matrix* matrix);
 
-Matrix* transpose_matrix(Matrix* matrix);
+void transpose_matrix(Matrix* matrix, Matrix* out);
 
 void add_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 

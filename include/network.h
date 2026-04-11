@@ -17,6 +17,6 @@ void free_network(Network* network);
 
 void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matrix *output, double learning_rate, int start_index);
 
-Matrix* feed_forward(Network* network, Matrix* input);
+Matrix* feed_forward(MatArena *arena, Network* network, Matrix* input);
 
 #endif

@@ -99,15 +99,13 @@ void print_matrix(Matrix* matrix) {
     }
 }
 
-Matrix* transpose_matrix(Matrix* matrix) {
-    Matrix* transposed = create_matrix(matrix->columns, matrix->rows);
+void transpose_matrix(Matrix* matrix, Matrix *out) {
     for (int i = 0; i < matrix->rows; i++) {
         for (int j = 0; j < matrix->columns; j++) {
             double value = get_matrix_value(matrix, i, j);
-            set_matrix_value(transposed, j, i, value);
+            set_matrix_value(out, j, i, value);
         }
     }
-    return transposed;
 }
 
 void add_matrices(Matrix* m1, Matrix* m2, Matrix* out) {

@@ -99,13 +99,14 @@ void measure_performance(Network* network) {
   read_test_files(&input, &output, &total_samples);
 
   int success = 0;
+  MatArena *arena = allocate_arena(MB(5));
   for (int i = 0; i < total_samples; i++) {
-    Matrix* result = feed_forward(network, &input[i]);
+    Matrix* result = feed_forward(arena, network, &input[i]);
     uint8_t num_result = convert_label_to_number(result);
     if (num_result == output[i]) {
       success++;
     }
-    free_matrix(result);
+    clear_arena(arena);
   }
 
   free(input);
