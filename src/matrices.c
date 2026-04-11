@@ -183,9 +183,14 @@ void multiply_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < m1->rows; i++) {
+        double *row = &m1->values[i * m1->columns];
+        int out_start_index = i * out->columns;
         for (int j = 0; j < m2->columns; j++) {
-            double value = _get_matrix_product_at(m1, m2, i, j);
-            set_matrix_value(out, i, j, value);
+            double sum = 0;
+            for (int k = 0; k < m1->columns; k++) {
+                sum += row[k] * m2->values[k*m2->columns + j];
+            }
+            out->values[out_start_index + j] = sum;
         }
     }
 }
