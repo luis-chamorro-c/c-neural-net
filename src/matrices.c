@@ -156,15 +156,10 @@ void element_wise_operation(Matrix* matrix, double (*func)(double), Matrix* out)
     }
 }
 
-Matrix* scalar_multiply_matrix(Matrix* matrix, double scalar) {
-    Matrix* product = create_matrix(matrix->rows, matrix->columns);
-    for (int i = 0; i < matrix->rows; i++) {
-        for (int j = 0; j < matrix->columns; j++) {
-            double v = get_matrix_value(matrix, i, j);
-            _set_matrix_value(product, i, j, v * scalar);
-        }
+void scalar_multiply_matrix(Matrix* m, double scalar, Matrix* out) {
+    for (int i = 0; i < m->rows * m->columns; i++) {
+        out->values[i] = m->values[i] * scalar;
     }
-    return product;
 }
 
 double _get_matrix_product_at(Matrix* m1, Matrix* m2, int row, int column) {

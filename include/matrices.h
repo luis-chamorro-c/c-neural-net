@@ -40,7 +40,7 @@ void hadamard_product(Matrix* m1, Matrix* m2, Matrix* out);
 
 void element_wise_operation(Matrix* matrix, double (*func)(double), Matrix* out);
 
-Matrix* scalar_multiply_matrix(Matrix* matrix, double scalar);
+void scalar_multiply_matrix(Matrix* matrix, double scalar, Matrix *out);
 
 void multiply_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 

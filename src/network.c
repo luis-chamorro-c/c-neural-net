@@ -87,19 +87,18 @@ double sigmoid_prime(double input) {
     return sigmoid(input) * (1-sigmoid(input));
 }
 
-void feed_forward_for_backprop(Network* network, Matrix* input, Matrix* activations, Matrix* pre_activations) {
+void feed_forward_for_backprop(MatArena *arena, Network* network, Matrix* input, Matrix* activations, Matrix* pre_activations) {
     Matrix* current = input;
     for (int i = 0; i < network->num_layers - 1; i++) {
         Matrix *weights = &network->weights[i];
         Matrix *biases = &network->biases[i];
         
-        Matrix* intermediate = create_matrix(weights->rows, current->columns);
+        Matrix* intermediate = allocate_matrix(arena, weights->rows, current->columns);
         multiply_matrices(weights, current, intermediate);
         add_matrices(intermediate, biases, &pre_activations[i]);
     
         element_wise_operation(&pre_activations[i], sigmoid, &activations[i+1]);
         current = &activations[i+1];
-        free_matrix(intermediate);
     }
 }
 
@@ -142,7 +141,7 @@ void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* o
     activations[0] = *input;
     Matrix* pre_activations = allocate_matrices(arena, network->layers + 1, columns, size);
     
-    feed_forward_for_backprop(network, input, activations, pre_activations);
+    feed_forward_for_backprop(arena, network, input, activations, pre_activations);
 
     // Calculate error for last layer
     Matrix *error = &delta_b[size - 1];
@@ -204,13 +203,10 @@ void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matri
 
     double to_mult = (learning_rate/SAMPLE_SIZE);
     for (int i = 0; i < network->num_layers - 1; i++) {
-        Matrix* w_multiplied = scalar_multiply_matrix(&delta_w_sums[i], to_mult);
-        subtract_matrices(&network->weights[i], w_multiplied, &network->weights[i]);
+        scalar_multiply_matrix(&delta_w_sums[i], to_mult, &delta_w_sums[i]);
+        subtract_matrices(&network->weights[i], &delta_w_sums[i], &network->weights[i]);
 
-        free_matrix(w_multiplied);
-
-        Matrix* b_multiplied = scalar_multiply_matrix(&delta_b_sums[i], to_mult);
-        subtract_matrices(&network->biases[i], b_multiplied, &network->biases[i]);
-        free_matrix(b_multiplied);
+        scalar_multiply_matrix(&delta_b_sums[i], to_mult, &delta_b_sums[i]);
+        subtract_matrices(&network->biases[i], &delta_b_sums[i], &network->biases[i]);
     }
 }
