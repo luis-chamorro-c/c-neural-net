@@ -61,7 +61,20 @@ void read_test_files(Matrix** input_img, uint8_t **input_label, int* input_size)
   (*input_size) = size;
 }
 
-Network* train() {
+void shuffle_training_data(Matrix* inputs, Matrix* outputs, int training_count) {
+  for (int i = training_count - 1; i >= 0; i--) {
+    int rand_index = rand() % (i + 1);
+    Matrix input_temp = inputs[i];
+    inputs[i] = inputs[rand_index];
+    inputs[rand_index] = input_temp;
+
+    Matrix output_temp = outputs[i];
+    outputs[i] = outputs[rand_index];
+    outputs[rand_index] = output_temp;
+  }
+}
+
+Network* train(int num_epochs) {
   printf("Training has begun\n");
   clock_t start = clock();
 
@@ -74,12 +87,15 @@ Network* train() {
   read_training_files(&input, &output, &training_count);
   
   MatArena *arena = allocate_arena(MB(30));
-  for (int i = 0; i < training_count; i+=10) {
-    if (i % 10000 == 0) {
-      printf("Trained %d entries\n", i);
+  for (int i = 0; i < num_epochs; i++) {
+    for (int j = 0; j < training_count; j+=10) {
+      if (j % 10000 == 0) {
+        printf("Trained %d entries\n", i * training_count + j);
+      }
+      update_with_samples(arena, network, input, output, 0.5, j);
+      clear_arena(arena);
     }
-    update_with_samples(arena, network, input, output, 0.5, i);
-    clear_arena(arena);
+    shuffle_training_data(input, output, training_count);
   }
   free_arena(arena);
 
@@ -116,8 +132,12 @@ void measure_performance(Network* network) {
   printf("Testing completed! Tested %d samples. Success rate: %.2f%%\n", total_samples, success_rate);
 }
 
-int main() {
-  Network *network = train();
+int main(int argc, char *argv[]) {
+  int num_epochs = 1;
+  if (argc > 1) {
+    num_epochs = atoi(argv[1]);
+  }
+  Network *network = train(num_epochs);
   measure_performance(network);
   free_network(network);
 }

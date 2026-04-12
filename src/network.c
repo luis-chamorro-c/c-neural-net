@@ -19,6 +19,10 @@ double fake_random(int j, int k) {
     return (val - floor(val)) - 0.5;
 }
 
+double real_random() {
+    return (((double)rand() / RAND_MAX) * 2.0) - 1;
+}
+
 Network *initialize_network(int* layers, int num_layers) {
     Network *network = malloc(sizeof(Network));
     network->num_layers = num_layers;
