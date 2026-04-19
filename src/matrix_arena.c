@@ -23,9 +23,9 @@ Matrix* allocate_matrix(MatArena *arena, int rows, int columns) {
     m->columns = columns;
     arena->curr_pos = alloc_start + sizeof(Matrix);
     
-    size_t double_start = ALIGN_UP(arena->curr_pos, double);
-    m->values = (double*)(arena->start_pos + double_start);
-    arena->curr_pos = double_start + (sizeof(double) * rows * columns);
+    size_t float_start = ALIGN_UP(arena->curr_pos, float);
+    m->values = (float*)(arena->start_pos + float_start);
+    arena->curr_pos = float_start + (sizeof(float) * rows * columns);
     return m;
 }
 
@@ -34,16 +34,16 @@ Matrix* allocate_matrices(MatArena *arena, int* rows, int* columns, int num_matr
     Matrix* matrix_arr = (Matrix*)(arena->start_pos + alloc_start);
 
     arena->curr_pos = alloc_start + (sizeof(Matrix) * num_matrices);
-    arena->curr_pos = ALIGN_UP(arena->curr_pos, double);
+    arena->curr_pos = ALIGN_UP(arena->curr_pos, float);
     
-    size_t double_start = arena->curr_pos;
+    size_t float_start = arena->curr_pos;
     uint8_t *curr_ptr = arena->start_pos + arena->curr_pos;
     for (int i = 0; i < num_matrices; i++) {
         matrix_arr[i].rows = rows[i];
         matrix_arr[i].columns = columns[i];
-        matrix_arr[i].values = (double*)(curr_ptr);
+        matrix_arr[i].values = (float*)(curr_ptr);
 
-        size_t to_append = sizeof(double) * rows[i] * columns[i];
+        size_t to_append = sizeof(float) * rows[i] * columns[i];
         memset(curr_ptr, 0, to_append);
         arena->curr_pos += to_append;
         curr_ptr += to_append;

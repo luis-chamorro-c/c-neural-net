@@ -15,15 +15,15 @@ const static int FILE_TYPE = 4111;
 
 const static int SAMPLE_SIZE = 10;
 
-double fake_random(int j, int k) {
+float fake_random(int j, int k) {
     // I debugged this by comparing to the python version, so I needed to initialize with a deterministic but
     // random looking set of numbers that I could compare 1 to 1. This was a pretty good estimate
-    double val = sin(j * 12.9898 + k * 78.233) * 43758.5453;
+    float val = sin(j * 12.9898 + k * 78.233) * 43758.5453;
     return (val - floor(val)) - 0.5;
 }
 
-double real_random() {
-    return (((double)rand() / RAND_MAX) * 2.0) - 1;
+float real_random() {
+    return (((float)rand() / RAND_MAX) * 2.0) - 1;
 }
 
 Network *initialize_network(int* layers, int num_layers) {
@@ -35,7 +35,7 @@ Network *initialize_network(int* layers, int num_layers) {
     network->layers = layers_copy;
 
     int struct_size = sizeof(Matrix) * (num_layers - 1);
-    size_t aligned_struct_size = ALIGN_UP(struct_size, double);
+    size_t aligned_struct_size = ALIGN_UP(struct_size, float);
 
     int num_entries = 0;
     int layers_sum = 0;
@@ -44,9 +44,9 @@ Network *initialize_network(int* layers, int num_layers) {
         layers_sum += layers[i+1];
     }
     
-    Matrix* curr_weights = malloc(aligned_struct_size + (sizeof(double) * num_entries));
-    double* values_start = (double*)((uint8_t*)curr_weights + aligned_struct_size);
-    double* curr_values = values_start;
+    Matrix* curr_weights = malloc(aligned_struct_size + (sizeof(float) * num_entries));
+    float* values_start = (float*)((uint8_t*)curr_weights + aligned_struct_size);
+    float* curr_values = values_start;
     for (int i = 0; i < num_layers - 1; i++) {
         int l1_count = layers[i];
         int l2_count = layers[i + 1];
@@ -58,7 +58,7 @@ Network *initialize_network(int* layers, int num_layers) {
         int offset = l1_count * l2_count;
         curr_values += offset;
 
-        double initializer = 1 / sqrt(l1_count);
+        float initializer = 1 / sqrt(l1_count);
         for (int j = 0; j < offset; j++) {
             curr_weights[i].values[j] = real_random() * initializer; 
             // curr_weights[i].values[j] = fake_random(j / l1_count, j % l1_count);
@@ -66,9 +66,9 @@ Network *initialize_network(int* layers, int num_layers) {
     }
     network->weights = curr_weights;
 
-    Matrix *biases = malloc(aligned_struct_size + sizeof(double) * layers_sum);
-    double* biases_start = (double*)((uint8_t*)biases + aligned_struct_size);
-    double* last_biases = biases_start;
+    Matrix *biases = malloc(aligned_struct_size + sizeof(float) * layers_sum);
+    float* biases_start = (float*)((uint8_t*)biases + aligned_struct_size);
+    float* last_biases = biases_start;
     for (int i = 0; i < num_layers - 1; i++) {
         biases[i].rows = layers[i+1];
         biases[i].columns = 1;
@@ -88,11 +88,11 @@ void free_network(Network* network) {
     free(network);
 }
 
-double sigmoid(double input) {
+float sigmoid(float input) {
     return 1/(1+exp(-input));
 }
 
-double sigmoid_prime(double input) {
+float sigmoid_prime(float input) {
     return sigmoid(input) * (1-sigmoid(input));
 }
 
@@ -118,7 +118,7 @@ Matrix* transpose(MatArena *arena, Matrix* m) {
 }
 
 void transpose_in_place(Matrix* m) {
-    double rows = m->rows;
+    float rows = m->rows;
     m->rows = m->columns;
     m->columns = rows;
 }
@@ -162,7 +162,7 @@ void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* o
 
 
     Matrix *last_activ = &activations[size - 1];
-    // Single row matrix, double transpose in place is faster than re-creating the matrix
+    // Single row matrix, float transpose in place is faster than re-creating the matrix
     transpose_in_place(last_activ);
     multiply_matrices(&delta_b[size - 1], last_activ, &delta_w[size - 1]);
     transpose_in_place(last_activ);
@@ -181,14 +181,14 @@ void backpropagation(MatArena *arena, Network* network, Matrix* input, Matrix* o
         error =  &delta_b[i];
 
         Matrix *curr_activ = &activations[i];
-        // Single row matrix, double transpose in place is faster than re-creating the matrix
+        // Single row matrix, float transpose in place is faster than re-creating the matrix
         transpose_in_place(curr_activ);
         multiply_matrices(error, curr_activ, &delta_w[i]);
         transpose_in_place(curr_activ);
     }
 }
 
-void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matrix *output, double learning_rate, int start_index) {
+void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matrix *output, float learning_rate, int start_index) {
     Matrix *delta_w_sums = allocate_matrices(arena, (network->layers + 1), network->layers, network->num_layers - 1);
     int columns[network->num_layers -1];
     for (int i = 0; i < network->num_layers; i++) {
@@ -210,7 +210,7 @@ void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matri
         }
     }
 
-    double to_mult = (learning_rate/SAMPLE_SIZE);
+    float to_mult = (learning_rate/SAMPLE_SIZE);
     for (int i = 0; i < network->num_layers - 1; i++) {
         scalar_multiply_matrix(&delta_w_sums[i], to_mult, &delta_w_sums[i]);
         subtract_matrices(&network->weights[i], &delta_w_sums[i], &network->weights[i]);
@@ -238,13 +238,13 @@ void save_network_to_file(Network *network, char *file_name) {
     // Weights
     for (int i = 0; i < network->num_layers - 1; i++) {
         int layer_size = network->layers[i] * network->layers[i+1];
-        fwrite(&network->weights[i], sizeof(double), layer_size, fptr);
+        fwrite(&network->weights[i], sizeof(float), layer_size, fptr);
     }
 
     // Biases
     for (int i = 0; i < network->num_layers - 1; i++) {
         int layer_size = network->layers[i+1];
-        fwrite(&network->biases[i], sizeof(double), layer_size, fptr);
+        fwrite(&network->biases[i], sizeof(float), layer_size, fptr);
     }
     
     fclose(fptr);

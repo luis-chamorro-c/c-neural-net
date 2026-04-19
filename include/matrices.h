@@ -7,7 +7,7 @@
 #define ALIGN_UP(size, align) (((size) + alignof(align) - 1) & ~(alignof(align) - 1))
 
 typedef struct { 
-    double* values;
+    float* values;
     int columns;
     int rows;
 } Matrix;
@@ -16,17 +16,17 @@ Matrix* create_matrix(int rows, int columns);
 
 Matrix* create_matrices(int rows, int columns, int num_matrices);
 
-Matrix* create_matrix_with_values(int rows, int columns, double* values);
+Matrix* create_matrix_with_values(int rows, int columns, float* values);
 
 void free_matrix(Matrix* matrix);
 
 void free_matrices(Matrix** matrices, int num_matrices);
 
-int set_matrix_value(Matrix* matrix, int row, int column, double value);
+int set_matrix_value(Matrix* matrix, int row, int column, float value);
 
-double get_matrix_value(Matrix* matrix, int row, int column);
+float get_matrix_value(Matrix* matrix, int row, int column);
 
-int set_matrix_values(Matrix* matrix, int row, double* values, int length);
+int set_matrix_values(Matrix* matrix, int row, float* values, int length);
 
 void print_matrix(Matrix* matrix);
 
@@ -38,12 +38,12 @@ void subtract_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 
 void hadamard_product(Matrix* m1, Matrix* m2, Matrix* out);
 
-void element_wise_operation(Matrix* matrix, double (*func)(double), Matrix* out);
+void element_wise_operation(Matrix* matrix, float (*func)(float), Matrix* out);
 
-void scalar_multiply_matrix(Matrix* matrix, double scalar, Matrix *out);
+void scalar_multiply_matrix(Matrix* matrix, float scalar, Matrix *out);
 
 void multiply_matrices(Matrix* m1, Matrix* m2, Matrix* out);
 
-double get_cost(Matrix* m1, Matrix* m2);
+float get_cost(Matrix* m1, Matrix* m2);
 
 #endif

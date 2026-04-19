@@ -25,7 +25,7 @@ void matrix_test() {
 
   Matrix* m_arr = allocate_matrices(arena, rows, columns, 3);
   
-  double count = 0;
+  float count = 0;
   for (int i = 0; i < 3; i++) {
     Matrix *m = &m_arr[i];
     for (int j = 0; j < m->rows; j++) {
@@ -105,7 +105,7 @@ Network* train(int num_epochs) {
   free(output);
 
   clock_t end = clock();
-  printf("Training complete! Training %d samples took %.2f seconds\n", training_count, (double)(end - start) / CLOCKS_PER_SEC);
+  printf("Training complete! Training %d samples took %.2f seconds\n", training_count, (float)(end - start) / CLOCKS_PER_SEC);
   return network;
 }
 
@@ -130,7 +130,7 @@ void measure_performance(Network* network) {
   free(input);
   free(output);
 
-  double success_rate = ((double)success / total_samples) * 100;
+  float success_rate = ((float)success / total_samples) * 100;
   printf("Testing completed! Tested %d samples. Success rate: %.2f%%\n", total_samples, success_rate);
 }
 

@@ -8,20 +8,20 @@ int _get_index(Matrix* matrix, int row, int column) {
     return (row * matrix->columns) + column;
 }
 
-void _set_matrix_value(Matrix* matrix, int row, int column, double value) {
+void _set_matrix_value(Matrix* matrix, int row, int column, float value) {
     int index = _get_index(matrix, row, column);
     matrix->values[index] = value;
 }
 
 Matrix* create_matrices(int rows, int columns, int num_matrices) {
     size_t struct_size = sizeof(Matrix) * num_matrices;
-    size_t aligned_struct_size = ALIGN_UP(struct_size, double);
+    size_t aligned_struct_size = ALIGN_UP(struct_size, float);
 
-    size_t arr_size = sizeof(double) * rows * columns * num_matrices;
+    size_t arr_size = sizeof(float) * rows * columns * num_matrices;
     void* memory_block = malloc(aligned_struct_size + arr_size);
 
     Matrix* matrix_list = (Matrix*)memory_block;
-    double* arr_start = (double*)((uint8_t*)memory_block + aligned_struct_size);
+    float* arr_start = (float*)((uint8_t*)memory_block + aligned_struct_size);
 
     for (int i = 0; i < num_matrices; i++) {
         matrix_list[i].rows = rows * columns;
@@ -34,14 +34,14 @@ Matrix* create_matrices(int rows, int columns, int num_matrices) {
 
 Matrix* create_matrix(int rows, int columns) {
     Matrix* curr_matrix = malloc(sizeof(Matrix));
-    curr_matrix->values = malloc(sizeof(double) * rows * columns);
-    memset(curr_matrix->values, 0, sizeof(double) * rows * columns);
+    curr_matrix->values = malloc(sizeof(float) * rows * columns);
+    memset(curr_matrix->values, 0, sizeof(float) * rows * columns);
     curr_matrix->rows = rows;
     curr_matrix->columns = columns;
     return curr_matrix;
 }
 
-Matrix* create_matrix_with_values(int rows, int columns, double* values) {
+Matrix* create_matrix_with_values(int rows, int columns, float* values) {
     Matrix* allocated_matrix = create_matrix(rows, columns);
     for (int i = 0; i < rows*columns; i++) {
         allocated_matrix->values[i] = values[i];
@@ -61,23 +61,23 @@ void free_matrices(Matrix** matrices, int num_matrices) {
     free(matrices);
 }
 
-int set_matrix_value(Matrix* matrix, int row, int column, double value) {
+int set_matrix_value(Matrix* matrix, int row, int column, float value) {
     if (row >= matrix->rows || column >= matrix->columns) {
         fprintf(stderr, "Cannot set value, dimensions (%d, %d) out of bounds for m=(%d, %d)\n",
             row, column, matrix->rows, matrix->columns);
         exit(EXIT_FAILURE);
     }
-    double* values = matrix->values;
+    float* values = matrix->values;
     _set_matrix_value(matrix, row, column, value);
     return 1;
 }
 
-double get_matrix_value(Matrix* matrix, int row, int column) {
+float get_matrix_value(Matrix* matrix, int row, int column) {
     int index = _get_index(matrix, row, column);
     return matrix->values[index];
 }
 
-int set_matrix_values(Matrix* matrix, int row, double* values, int length) {
+int set_matrix_values(Matrix* matrix, int row, float* values, int length) {
     if (row >= matrix->rows || length > matrix->columns) {
         fprintf(stderr, "Cannot set values, dimensions out of bounds\n");
         exit(EXIT_FAILURE);
@@ -92,7 +92,7 @@ void print_matrix(Matrix* matrix) {
     printf("Rows %d, Columns %d\n", matrix->rows, matrix->columns);
     for (int i = 0; i < matrix->rows; i++) {
         for (int j = 0; j < matrix->columns; j++) {
-            double value = matrix->values[_get_index(matrix, i, j)];
+            float value = matrix->values[_get_index(matrix, i, j)];
             printf("%5.9f ", value);
         }
         printf("\n");
@@ -102,7 +102,7 @@ void print_matrix(Matrix* matrix) {
 void transpose_matrix(Matrix* matrix, Matrix *out) {
     for (int i = 0; i < matrix->rows; i++) {
         for (int j = 0; j < matrix->columns; j++) {
-            double value = get_matrix_value(matrix, i, j);
+            float value = get_matrix_value(matrix, i, j);
             set_matrix_value(out, j, i, value);
         }
     }
@@ -150,20 +150,20 @@ void hadamard_product(Matrix* m1, Matrix* m2, Matrix* out) {
 }
 
 
-void element_wise_operation(Matrix* matrix, double (*func)(double), Matrix* out) {
+void element_wise_operation(Matrix* matrix, float (*func)(float), Matrix* out) {
     for (int i = 0; i < matrix->rows * matrix->columns; i++) {
         out->values[i] = func(matrix->values[i]);
     }
 }
 
-void scalar_multiply_matrix(Matrix* m, double scalar, Matrix* out) {
+void scalar_multiply_matrix(Matrix* m, float scalar, Matrix* out) {
     for (int i = 0; i < m->rows * m->columns; i++) {
         out->values[i] = m->values[i] * scalar;
     }
 }
 
-double _get_matrix_product_at(Matrix* m1, Matrix* m2, int row, int column) {
-    double sum = 0;
+float _get_matrix_product_at(Matrix* m1, Matrix* m2, int row, int column) {
+    float sum = 0;
     for (int i = 0; i < m1->columns; i++) {
         sum += get_matrix_value(m1, row, i) * get_matrix_value(m2, i, column);
     }
@@ -176,10 +176,10 @@ void multiply_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
         exit(EXIT_FAILURE);
     }
     for (int i = 0; i < m1->rows; i++) {
-        double *row = &m1->values[i * m1->columns];
+        float *row = &m1->values[i * m1->columns];
         int out_start_index = i * out->columns;
         for (int j = 0; j < m2->columns; j++) {
-            double sum = 0;
+            float sum = 0;
             for (int k = 0; k < m1->columns; k++) {
                 sum += row[k] * m2->values[k*m2->columns + j];
             }
@@ -188,11 +188,11 @@ void multiply_matrices(Matrix* m1, Matrix* m2, Matrix* out) {
     }
 }
 
-double get_cost(Matrix* m1, Matrix* m2) {
-    double sum = 0;
+float get_cost(Matrix* m1, Matrix* m2) {
+    float sum = 0;
     for (int i = 0; i < m1->rows; i++) {
         for (int j = 0; j < m1->columns; j++) {
-            double diff = get_matrix_value(m1, i, j) - get_matrix_value(m2, i, j);
+            float diff = get_matrix_value(m1, i, j) - get_matrix_value(m2, i, j);
             sum += diff * diff;
         }
     }

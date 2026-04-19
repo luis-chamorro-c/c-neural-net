@@ -17,10 +17,10 @@ int swap_int(int val) {
 }
 
 uint8_t convert_label_to_number(Matrix* label_matrix) {
-    double max = -1;
+    float max = -1;
     uint8_t max_num = 0;
     for (int i = 0; i < 10; i++) {
-        double matrix_value = get_matrix_value(label_matrix, i, 0);
+        float matrix_value = get_matrix_value(label_matrix, i, 0);
         if (matrix_value > max) {
             max = matrix_value;
             max_num = i;
@@ -87,9 +87,9 @@ Matrix* read_images(char* file_name) {
         Matrix image = images[i];
         uint8_t values[num_rows * num_cols];
         fread(&values, sizeof(uint8_t), num_rows * num_cols, fptr);
-        double *matrix_values = image.values;
+        float *matrix_values = image.values;
         for (int j = 0; j < num_rows * num_cols; j++) {
-            matrix_values[j] = (double)values[j] / 255;
+            matrix_values[j] = (float)values[j] / 255;
         }
     }
     return images;
