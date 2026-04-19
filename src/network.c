@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <stdalign.h>
 
+const static uint8_t VERSION = 2; 
+const static int FILE_TYPE = 4111;
+
 const static int SAMPLE_SIZE = 10;
 
 double fake_random(int j, int k) {
@@ -55,8 +58,10 @@ Network *initialize_network(int* layers, int num_layers) {
         int offset = l1_count * l2_count;
         curr_values += offset;
 
+        double initializer = 1 / sqrt(l1_count);
         for (int j = 0; j < offset; j++) {
-            curr_weights[i].values[j] = fake_random(j / l1_count, j % l1_count);
+            curr_weights[i].values[j] = real_random() * initializer; 
+            // curr_weights[i].values[j] = fake_random(j / l1_count, j % l1_count);
         }
     }
     network->weights = curr_weights;
@@ -213,4 +218,34 @@ void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matri
         scalar_multiply_matrix(&delta_b_sums[i], to_mult, &delta_b_sums[i]);
         subtract_matrices(&network->biases[i], &delta_b_sums[i], &network->biases[i]);
     }
+}
+
+void save_network_to_file(Network *network, char *file_name) {
+    FILE *fptr = fopen(file_name, "wb");
+    if (!fptr) {
+        fprintf(stderr, "Could not open file %s", file_name);
+        exit(EXIT_FAILURE);
+    }
+
+    // File metadata
+    fwrite(&FILE_TYPE, sizeof(int), 1, fptr);
+    fwrite(&VERSION, sizeof(uint8_t), 1, fptr);
+    
+    // Layer metadata
+    fwrite(&network->num_layers, sizeof(int), 1, fptr);
+    fwrite(network->layers, sizeof(int), network->num_layers, fptr);
+
+    // Weights
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        int layer_size = network->layers[i] * network->layers[i+1];
+        fwrite(&network->weights[i], sizeof(double), layer_size, fptr);
+    }
+
+    // Biases
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        int layer_size = network->layers[i+1];
+        fwrite(&network->biases[i], sizeof(double), layer_size, fptr);
+    }
+    
+    fclose(fptr);
 }

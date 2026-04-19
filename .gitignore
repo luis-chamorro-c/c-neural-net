@@ -56,3 +56,6 @@ dkms.conf
 *.dwo
 
 .DS_Store
+
+# Stored weights + biases
+stored_networks/

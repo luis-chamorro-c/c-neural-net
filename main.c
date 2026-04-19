@@ -15,6 +15,8 @@
 #define TESTING_LABELS BASE_DIR"/t10k-labels-idx1-ubyte/t10k-labels-idx1-ubyte"
 #define TESTING_IMAGES BASE_DIR"/t10k-images-idx3-ubyte/t10k-images-idx3-ubyte"
 
+#define NETWORK_FILE "/Users/luischamorro/repo/c-neural-net/stored_networks/network"
+
 void matrix_test() {
   MatArena *arena = allocate_arena(MB(5));
 
@@ -139,5 +141,6 @@ int main(int argc, char *argv[]) {
   }
   Network *network = train(num_epochs);
   measure_performance(network);
+  save_network_to_file(network, NETWORK_FILE);
   free_network(network);
 }

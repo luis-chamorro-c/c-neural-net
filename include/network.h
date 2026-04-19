@@ -19,4 +19,6 @@ void update_with_samples(MatArena *arena, Network *network, Matrix *input, Matri
 
 Matrix* feed_forward(MatArena *arena, Network* network, Matrix* input);
 
+void save_network_to_file(Network *network, char *file_name);
+
 #endif
