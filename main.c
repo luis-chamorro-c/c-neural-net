@@ -7,7 +7,7 @@
 #include <time.h>
 #include "matrix_arena.h"
 
-#define BASE_DIR "/Users/luischamorro/repo/c-neural-net/mnist-dataset"
+#define BASE_DIR "./mnist-dataset"
 
 #define TRAINING_LABELS BASE_DIR"/train-labels-idx1-ubyte/train-labels-idx1-ubyte"
 #define TRAINING_IMAGES BASE_DIR"/train-images-idx3-ubyte/train-images-idx3-ubyte"
@@ -15,7 +15,7 @@
 #define TESTING_LABELS BASE_DIR"/t10k-labels-idx1-ubyte/t10k-labels-idx1-ubyte"
 #define TESTING_IMAGES BASE_DIR"/t10k-images-idx3-ubyte/t10k-images-idx3-ubyte"
 
-#define NETWORK_FILE "/Users/luischamorro/repo/c-neural-net/stored_networks/network"
+#define NETWORK_FILE "./stored_networks/network"
 
 void matrix_test() {
   MatArena *arena = allocate_arena(MB(5));
