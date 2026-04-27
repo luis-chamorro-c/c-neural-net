@@ -238,14 +238,84 @@ void save_network_to_file(Network *network, char *file_name) {
     // Weights
     for (int i = 0; i < network->num_layers - 1; i++) {
         int layer_size = network->layers[i] * network->layers[i+1];
-        fwrite(&network->weights[i], sizeof(float), layer_size, fptr);
+        fwrite(network->weights[i].values, sizeof(float), layer_size, fptr);
     }
 
     // Biases
     for (int i = 0; i < network->num_layers - 1; i++) {
         int layer_size = network->layers[i+1];
-        fwrite(&network->biases[i], sizeof(float), layer_size, fptr);
+        fwrite(network->biases[i].values, sizeof(float), layer_size, fptr);
     }
     
     fclose(fptr);
+}
+
+Network *read_network_from_file(char *file_name) {
+    FILE *fptr = fopen(file_name, "rb");
+    if (!fptr) {
+        fprintf(stderr, "Could not open file %s", file_name);
+        exit(EXIT_FAILURE);
+    }
+
+    int file_type;
+    fread(&file_type, sizeof(int), 1, fptr);
+    if (file_type != FILE_TYPE) {
+        fprintf(stderr, "Recieved incorrect file type. Expected %d but received %d", FILE_TYPE, file_type);
+        exit(EXIT_FAILURE);
+    }
+
+    uint8_t version;
+    fread(&version, sizeof(uint8_t), 1, fptr);
+    if (version != VERSION) {
+        fprintf(stderr, "Received incorrect version. Expected %d but received %d", VERSION, version);
+        exit(EXIT_FAILURE);
+    }
+
+    int num_layers;
+    fread(&num_layers, sizeof(int), 1, fptr);
+    int *layers = malloc(sizeof(int) * num_layers);
+    fread(layers, sizeof(int), num_layers, fptr);
+
+    Network *network = malloc(sizeof(Network));
+    network->num_layers = num_layers;
+    network->layers = layers;
+
+    int num_weights = 0;
+    int num_biases = 0;
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        num_weights += network->layers[i] * network->layers[i+1];
+        num_biases += network->layers[i+1];
+    }
+
+    int struct_size = sizeof(Matrix) * (num_layers - 1);
+    size_t aligned_struct_size = ALIGN_UP(struct_size, float);
+
+    Matrix *weights = malloc(aligned_struct_size + (sizeof(float) * num_weights));
+    float *weights_index = (float*)((uint8_t*)weights + aligned_struct_size);
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        weights[i].rows = network->layers[i+1];
+        weights[i].columns = network->layers[i];
+        
+        int weights_size = network->layers[i+1] * network->layers[i];
+        fread(weights_index, sizeof(float), weights_size, fptr);
+        weights[i].values = weights_index;
+
+        weights_index += weights_size;
+    }
+    network->weights = weights;
+
+    Matrix *biases = malloc(aligned_struct_size + (sizeof(float) * num_biases));
+    float *biases_index = (float*)((uint8_t*)biases + aligned_struct_size);
+    for (int i = 0; i < network->num_layers - 1; i++) {
+        biases[i].rows = network->layers[i+1];
+        biases[i].columns = 1;
+
+        fread(biases_index, sizeof(float), network->layers[i+1], fptr);
+        biases[i].values = biases_index;
+
+        biases_index += network->layers[i+1];
+    }
+    network->biases = biases;
+    
+    return network;
 }

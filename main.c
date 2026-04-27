@@ -15,7 +15,7 @@
 #define TESTING_LABELS BASE_DIR"/t10k-labels-idx1-ubyte/t10k-labels-idx1-ubyte"
 #define TESTING_IMAGES BASE_DIR"/t10k-images-idx3-ubyte/t10k-images-idx3-ubyte"
 
-#define NETWORK_FILE "./stored_networks/network"
+#define NETWORK_FILE "./stored_networks/network.bin"
 
 void matrix_test() {
   MatArena *arena = allocate_arena(MB(5));
@@ -76,41 +76,7 @@ void shuffle_training_data(Matrix* inputs, Matrix* outputs, int training_count) 
   }
 }
 
-Network* train(int num_epochs) {
-  printf("Training has begun\n");
-  clock_t start = clock();
-
-  int layers[3] = { (28*28), 30, 10 };
-  Network *network = initialize_network(layers, 3);
-
-  Matrix* input;
-  Matrix* output;
-  int training_count;
-  read_training_files(&input, &output, &training_count);
-  
-  MatArena *arena = allocate_arena(MB(30));
-  for (int i = 0; i < num_epochs; i++) {
-    for (int j = 0; j < training_count; j+=10) {
-      if (j % 10000 == 0) {
-        printf("Trained %d entries\n", i * training_count + j);
-      }
-      update_with_samples(arena, network, input, output, 0.5, j);
-      clear_arena(arena);
-    }
-    shuffle_training_data(input, output, training_count);
-  }
-  free_arena(arena);
-
-  free(input);
-  free(output);
-
-  clock_t end = clock();
-  printf("Training complete! Training %d samples took %.2f seconds\n", training_count, (float)(end - start) / CLOCKS_PER_SEC);
-  return network;
-}
-
-void measure_performance(Network* network) {
-  printf("Testing started\n");
+float measure_performance(Network* network) {
   Matrix* input;
   uint8_t *output;
   int total_samples;
@@ -129,9 +95,50 @@ void measure_performance(Network* network) {
 
   free(input);
   free(output);
+  free_arena(arena);
 
-  float success_rate = ((float)success / total_samples) * 100;
-  printf("Testing completed! Tested %d samples. Success rate: %.2f%%\n", total_samples, success_rate);
+  return ((float)success / total_samples) * 100;
+}
+
+
+Network* train(int num_epochs) {
+  printf("Training has begun\n");
+  clock_t start = clock();
+
+  int layers[3] = { (28*28), 30, 10 };
+  Network *network = initialize_network(layers, 3);
+
+  Matrix* input;
+  Matrix* output;
+  int training_count;
+  read_training_files(&input, &output, &training_count);
+  
+  MatArena *arena = allocate_arena(MB(30));
+  for (int i = 0; i < num_epochs; i++) {
+    for (int j = 0; j < training_count; j+=10) {
+      update_with_samples(arena, network, input, output, 0.5, j);
+      clear_arena(arena);
+    }
+    float success_rate = measure_performance(network);
+    printf("Epoch %d completed. Current success rate: %.2f%%\n", i, success_rate);
+    shuffle_training_data(input, output, training_count);
+  }
+  free_arena(arena);
+
+  free(input);
+  free(output);
+
+  clock_t end = clock();
+  printf("Training complete! Training %d samples took %.2f seconds\n", training_count, (float)(end - start) / CLOCKS_PER_SEC);
+  return network;
+}
+
+void measure_saved_network() {
+  Network *net2 = read_network_from_file(NETWORK_FILE);
+  measure_performance(net2);
+  float success_rate2 = measure_performance(net2);
+  printf("Testing completed! Success rate: %.2f%%\n", success_rate2);
+  free_network(net2);
 }
 
 int main(int argc, char *argv[]) {
@@ -140,7 +147,8 @@ int main(int argc, char *argv[]) {
     num_epochs = atoi(argv[1]);
   }
   Network *network = train(num_epochs);
-  measure_performance(network);
+  float success_rate = measure_performance(network);
+  printf("Testing completed! Success rate: %.2f%%\n", success_rate);
   save_network_to_file(network, NETWORK_FILE);
   free_network(network);
 }

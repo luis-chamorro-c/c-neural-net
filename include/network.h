@@ -21,4 +21,6 @@ Matrix* feed_forward(MatArena *arena, Network* network, Matrix* input);
 
 void save_network_to_file(Network *network, char *file_name);
 
+Network *read_network_from_file(char *file_name);
+
 #endif
